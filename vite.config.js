@@ -19,7 +19,7 @@ const pwa = VitePWA({
     description: 'Record a quick voice note of what you worked on today.',
     theme_color: '#2a2d36',
     background_color: '#2a2d36',
-    display: 'fullscreen',
+    display: 'standalone',
     display_override: ['fullscreen', 'standalone'],
     orientation: 'portrait',
     start_url: './',
