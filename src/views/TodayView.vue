@@ -14,6 +14,7 @@ const { date, dateValid, isToday, recording } = useDayDate()
 const note = ref(null)
 const loading = ref(true)
 const showRecorder = ref(true)
+const transcriptField = ref(null)
 const showNudge = ref(false)
 const confirmRerecord = ref(false)
 const confirmDelete = ref(false)
@@ -136,6 +137,12 @@ async function writeInstead() {
   showRecorder.value = false
   showNudge.value = false
   await nextTick()
+  const field = transcriptField.value
+  if (field) {
+    field.focus()
+    const end = field.value.length
+    field.setSelectionRange(end, end)
+  }
   hydrating = false
 }
 
@@ -195,9 +202,6 @@ onUnmounted(() => {
   <section>
     <p class="text-sm font-semibold uppercase tracking-[0.22em] text-neon">{{ eyebrow }}</p>
     <h1 class="mt-1 font-display text-3xl leading-tight text-ink">{{ heading }}</h1>
-    <p class="mt-2 text-sm leading-6 text-muted">
-      A short voice note of what you worked on. Captions and audio stay on this device.
-    </p>
 
     <div
       v-if="showNudge && !hasNote"
@@ -246,6 +250,7 @@ onUnmounted(() => {
         </label>
         <textarea
           id="day-transcript"
+          ref="transcriptField"
           v-if="note"
           v-model="note.transcript"
           rows="6"
@@ -253,15 +258,16 @@ onUnmounted(() => {
           placeholder="Edit the captions, or type what you worked on."
           @blur="persistTranscript({ announceSave: true })"
         />
-
-        <button
-          type="button"
-          class="mt-4 text-sm font-semibold text-red-700"
-          @click="confirmDelete = true"
-        >
-          Delete this day
-        </button>
       </article>
+
+      <button
+        v-if="!showRecorder"
+        type="button"
+        class="mt-4 w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm font-semibold text-red-700"
+        @click="confirmDelete = true"
+      >
+        Delete this day
+      </button>
     </div>
 
     <p v-if="saveError" class="mt-4 text-sm text-red-700">{{ saveError }}</p>

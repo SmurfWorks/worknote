@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useInstallPrompt } from '../composables/useInstallPrompt'
+import { useOnboarding } from '../composables/useOnboarding'
 import { useReminders } from '../composables/useReminders'
 import { getSettings, saveSettings } from '../lib/db'
 import { WEEKDAYS } from '../lib/types'
@@ -9,6 +10,7 @@ const settings = ref(null)
 const savedFlash = ref(false)
 const { permission, requestPermission, refreshSchedule } = useReminders()
 const { canInstall, isStandalone, install } = useInstallPrompt()
+const { show: showOnboarding } = useOnboarding()
 
 async function persist() {
   if (!settings.value) return
@@ -138,6 +140,13 @@ onMounted(async () => {
           Audio and transcripts are stored in this browser’s local database. Live captions use the
           browser’s free speech service when it is available; you can always edit or type the note.
         </p>
+        <button
+          type="button"
+          class="mt-4 rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink"
+          @click="showOnboarding"
+        >
+          How Worknote works
+        </button>
       </section>
     </div>
   </section>
