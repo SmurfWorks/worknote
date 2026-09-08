@@ -33,7 +33,7 @@ const activeTab = computed(() => route.meta.tab ?? 'today')
     <main class="flex-1 px-4 pb-28 pt-4">
       <RouterView v-slot="{ Component }">
         <KeepAlive include="TodayView">
-          <component :is="Component" />
+          <component :is="Component" :key="route.name" />
         </KeepAlive>
       </RouterView>
     </main>

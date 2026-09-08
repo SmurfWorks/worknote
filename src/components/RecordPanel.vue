@@ -3,7 +3,11 @@ import { formatDuration } from '../lib/dates'
 import { useRecorder } from '../composables/useRecorder'
 import { useTranscription } from '../composables/useTranscription'
 
-const emit = defineEmits(['captured'])
+defineProps({
+  hint: { type: String, default: 'Tap to record this day’s note' },
+})
+
+const emit = defineEmits(['captured', 'recording'])
 
 const { isRecording, elapsedSeconds, error: recordError, levels, start, stop } = useRecorder()
 const {
@@ -15,6 +19,7 @@ const {
 
 async function toggle() {
   if (isRecording.value) {
+    emit('recording', false)
     const transcript = stopTranscript()
     const result = await stop()
     if (!result) return
@@ -26,8 +31,14 @@ async function toggle() {
     return
   }
 
-  await start()
+  try {
+    await start()
+  } catch {
+    emit('recording', false)
+    return
+  }
   startTranscript()
+  emit('recording', true)
 }
 </script>
 
@@ -72,7 +83,7 @@ async function toggle() {
     </button>
 
     <p class="mt-3 text-sm font-medium text-muted">
-      {{ isRecording ? 'Listening… tap to save' : 'Tap to record today’s note' }}
+      {{ isRecording ? 'Listening… tap to save' : hint }}
     </p>
 
     <p v-if="liveText || isRecording" class="mt-4 w-full rounded-2xl bg-card px-4 py-3 text-sm leading-6 text-ink">

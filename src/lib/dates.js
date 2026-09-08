@@ -39,3 +39,28 @@ export function formatDuration(seconds) {
 export function isDateKey(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value)
 }
+
+export function shiftDateKey(key, deltaDays) {
+  const date = parseDateKey(key)
+  date.setDate(date.getDate() + deltaDays)
+  return todayKey(date)
+}
+
+export function dateRelation(key, from = new Date()) {
+  const today = todayKey(from)
+  if (key === today) return 'today'
+  if (key === shiftDateKey(today, -1)) return 'yesterday'
+  if (key === shiftDateKey(today, 1)) return 'tomorrow'
+  return key < today ? 'earlier' : 'upcoming'
+}
+
+export function dateRelationLabel(key, from = new Date()) {
+  const labels = {
+    today: 'Today',
+    yesterday: 'Yesterday',
+    tomorrow: 'Tomorrow',
+    earlier: 'Earlier',
+    upcoming: 'Upcoming',
+  }
+  return labels[dateRelation(key, from)]
+}
