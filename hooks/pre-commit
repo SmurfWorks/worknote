@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+set -e
+
+cd "$(git rev-parse --show-toplevel)"
+
+echo "pre-commit: building docs/ so GitHub Pages files match this commit"
+npm run build
+git add -A docs

@@ -223,7 +223,7 @@ onUnmounted(() => {
         />
         <button
           type="button"
-          class="mt-6 w-full rounded-full bg-neon px-4 py-2.5 text-sm font-semibold text-on-accent"
+          class="mt-6 w-full rounded-full bg-neon px-4 py-2.5 text-sm font-bold text-on-neon"
           @click="writeInstead"
         >
           Type a note instead
@@ -238,7 +238,7 @@ onUnmounted(() => {
             class="text-sm font-semibold text-accent"
             @click="requestNewRecording"
           >
-            Record again
+            Record voice
           </button>
         </div>
 
@@ -266,7 +266,7 @@ onUnmounted(() => {
         class="mt-4 w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm font-semibold text-red-700"
         @click="confirmDelete = true"
       >
-        Delete this day
+        Delete this note
       </button>
     </div>
 

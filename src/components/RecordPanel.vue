@@ -67,7 +67,7 @@ async function toggle() {
     <button
       type="button"
       class="mt-6 flex size-24 items-center justify-center rounded-full transition active:scale-95"
-      :class="isRecording ? 'bg-neon text-on-accent glow-neon' : 'bg-accent text-on-accent glow-accent'"
+      :class="isRecording ? 'bg-neon text-on-neon glow-neon' : 'bg-accent text-on-accent glow-accent'"
       :aria-pressed="isRecording"
       :aria-label="isRecording ? 'Stop recording' : 'Start recording'"
       @click="toggle"

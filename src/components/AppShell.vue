@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import DateBar from './DateBar.vue'
+import InstallPrompt from './InstallPrompt.vue'
 import ToastStack from './ToastStack.vue'
 import { useDayDate } from '../composables/useDayDate'
 
@@ -35,6 +36,7 @@ const activeTab = computed(() => route.meta.tab ?? 'today')
     </header>
 
     <main class="flex-1 px-4 pt-4" :class="showDateBar ? 'pb-44' : 'pb-28'">
+      <InstallPrompt />
       <RouterView v-slot="{ Component }">
         <component :is="Component" />
       </RouterView>

@@ -3,9 +3,16 @@ export function isAndroid() {
   return /Android/i.test(navigator.userAgent)
 }
 
-export function isMobileDevice() {
+export function isIos() {
   if (typeof navigator === 'undefined') return false
-  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  const ua = navigator.userAgent
+  const iPhone = /iPad|iPhone|iPod/i.test(ua)
+  const iPadOs = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
+  return iPhone || iPadOs
+}
+
+export function isMobileDevice() {
+  return isAndroid() || isIos()
 }
 
 export function shouldCapturePcm() {

@@ -49,7 +49,7 @@ function openDay() {
         />
         <button
           type="submit"
-          class="rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent"
+          class="rounded-full bg-accent px-4 py-2.5 text-sm font-bold text-on-accent"
         >
           Open
         </button>

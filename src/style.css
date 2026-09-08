@@ -15,6 +15,7 @@
   --color-neon: var(--neon);
   --color-neon-soft: var(--neon-soft);
   --color-on-accent: var(--on-accent);
+  --color-on-neon: var(--on-neon);
 }
 
 :root {
@@ -27,7 +28,8 @@
   --accent-soft: #ffd4f3;
   --neon: #00c853;
   --neon-soft: #d2ffe6;
-  --on-accent: #140016;
+  --on-accent: #ffffff;
+  --on-neon: #ffffff;
   color-scheme: light dark;
 }
 
@@ -42,7 +44,8 @@
     --accent-soft: #4e364c;
     --neon: #3dff9a;
     --neon-soft: #355046;
-    --on-accent: #24262d;
+    --on-accent: #ffffff;
+    --on-neon: rgba(0,0,0,0.75);
   }
 }
 
@@ -66,7 +69,9 @@ body {
 button,
 input,
 textarea {
-  font: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .font-display {

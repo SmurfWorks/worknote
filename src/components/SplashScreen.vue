@@ -4,6 +4,7 @@ import { useOnboarding } from '../composables/useOnboarding'
 
 const { open, dismiss } = useOnboarding()
 const startButton = ref(null)
+const splashRoot = ref(null)
 let previousOverflow = ''
 
 function lockScroll(locked) {
@@ -22,7 +23,8 @@ watch(
     lockScroll(value)
     if (!value) return
     await nextTick()
-    startButton.value?.focus()
+    splashRoot.value?.scrollTo({ top: 0 })
+    startButton.value?.focus({ preventScroll: true })
   },
   { immediate: true },
 )
@@ -34,15 +36,16 @@ onBeforeUnmount(() => lockScroll(false))
   <Teleport to="body">
     <div
       v-if="open"
-      class="fixed inset-0 z-50 overflow-y-auto bg-paper"
+      ref="splashRoot"
+      class="fixed inset-0 z-50 flex flex-col overflow-hidden bg-paper"
       role="dialog"
       aria-modal="true"
       aria-labelledby="splash-title"
     >
       <div
-        class="mx-auto flex min-h-dvh max-w-lg flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]"
+        class="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col px-5 pt-[max(1.5rem,env(safe-area-inset-top))]"
       >
-        <div class="flex flex-1 flex-col justify-center py-6">
+        <div class="min-h-0 flex-1 overflow-y-auto pb-4">
           <p class="text-sm font-semibold uppercase tracking-[0.22em] text-neon">Welcome</p>
           <h1 id="splash-title" class="mt-1 font-display text-4xl leading-tight text-ink">Worknote</h1>
           <p class="mt-3 text-base leading-7 text-muted">
@@ -78,7 +81,7 @@ onBeforeUnmount(() => lockScroll(false))
         <button
           type="button"
           ref="startButton"
-          class="mt-4 w-full rounded-full bg-accent px-4 py-3 text-sm font-semibold text-on-accent"
+          class="mt-2 mb-[max(1.5rem,env(safe-area-inset-bottom))] w-full shrink-0 rounded-full bg-accent px-4 py-3 text-sm font-bold text-on-accent"
           @click="dismiss"
         >
           Get started

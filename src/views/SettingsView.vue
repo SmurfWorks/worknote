@@ -9,7 +9,7 @@ import { WEEKDAYS } from '../lib/types'
 const settings = ref(null)
 const savedFlash = ref(false)
 const { permission, requestPermission, refreshSchedule } = useReminders()
-const { canInstall, isStandalone, install } = useInstallPrompt()
+const { canInstall, isStandalone, isIos, isAndroid, install } = useInstallPrompt()
 const { show: showOnboarding } = useOnboarding()
 
 async function persist() {
@@ -84,7 +84,7 @@ onMounted(async () => {
             v-for="day in WEEKDAYS"
             :key="day.value"
             type="button"
-            class="rounded-full px-3 py-1.5 text-sm font-semibold"
+            class="rounded-full px-3 py-1.5 text-sm font-bold"
             :class="
               settings.days.includes(day.value)
                 ? 'bg-accent text-on-accent'
@@ -118,7 +118,7 @@ onMounted(async () => {
         <button
           v-if="permission !== 'granted'"
           type="button"
-          class="mt-4 rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent"
+          class="mt-4 rounded-full bg-accent px-4 py-2.5 text-sm font-bold text-on-accent"
           @click="enableNotifications"
         >
           Allow notifications
@@ -126,12 +126,20 @@ onMounted(async () => {
         <button
           v-if="canInstall"
           type="button"
-          class="mt-3 rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink"
+          class="mt-3 rounded-full bg-accent px-4 py-2.5 text-sm font-bold text-on-accent"
           @click="install"
         >
-          Install on this device
+          Add to Home Screen
         </button>
-        <p v-else-if="isStandalone" class="mt-3 text-sm text-muted">Running as an installed app.</p>
+        <p v-else-if="isStandalone" class="mt-3 text-sm text-muted">
+          Running from your Home Screen.
+        </p>
+        <p v-else-if="isIos" class="mt-3 text-sm leading-6 text-muted">
+          On iPhone, tap Share, then Add to Home Screen.
+        </p>
+        <p v-else-if="isAndroid" class="mt-3 text-sm leading-6 text-muted">
+          Use the browser menu to Add to Home Screen or Install app.
+        </p>
       </section>
 
       <section class="rounded-3xl border border-line bg-card p-4">
