@@ -29,7 +29,16 @@ export async function getSettings() {
 
 export async function saveSettings(settings) {
   const db = await getDb()
-  await db.put('meta', settings, SETTINGS_KEY)
+  await db.put(
+    'meta',
+    {
+      days: [...settings.days],
+      time: settings.time,
+      remindersEnabled: settings.remindersEnabled,
+      lastNotifiedDate: settings.lastNotifiedDate ?? null,
+    },
+    SETTINGS_KEY,
+  )
 }
 
 export async function getNote(date) {

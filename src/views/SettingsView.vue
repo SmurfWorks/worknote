@@ -101,6 +101,7 @@ onMounted(async () => {
           v-model="settings.time"
           type="time"
           class="mt-2 rounded-2xl border border-line bg-paper px-3 py-2 text-ink"
+          @input="persist"
           @change="persist"
         />
       </section>
