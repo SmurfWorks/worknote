@@ -9,7 +9,7 @@ import { normalizeTime, reminderTimes, WEEKDAYS } from '../lib/types'
 
 const settings = ref(null)
 const MAX_TIMES = 8
-const { permission, backgroundReady, requestPermission, refreshSchedule } = useReminders()
+const notificationsAllowed = computed(() => false)
 const { show: showOnboarding } = useOnboarding()
 
 async function persist() {
@@ -103,7 +103,7 @@ onMounted(async () => {
     </p>
 
     <div v-if="settings" class="mt-6 space-y-4">
-      <section class="rounded-3xl border border-line bg-card p-4">
+      <section v-if="permission === 'granted'" class="rounded-3xl border border-line bg-card p-4">
         <div class="flex items-center justify-between gap-3">
           <div>
             <h2 class="font-display text-xl text-ink">Reminders</h2>
@@ -173,12 +173,22 @@ onMounted(async () => {
       <section class="rounded-3xl border border-line bg-card p-4">
         <h2 class="font-display text-xl text-ink">Notifications</h2>
         <p class="mt-1 text-sm leading-6 text-muted">
-          Status: {{ permissionLabel[permission] }}. Android needs Worknote installed on the home
-          screen, then Allow notifications. The banner may not pop while the app is open — check the
-          notification shade. iPhone can still miss scheduled web notifications unless the app is
-          opened that day.
+          <template v-if="permission !== 'granted'">
+            Enable notifications so Worknote can create reminder notifications. You can pick days
+            and times after that.
+          </template>
+          <template v-else>
+            Status: {{ permissionLabel[permission] }}. Android needs Worknote installed on the home
+            screen, then Allow notifications. The banner may not pop while the app is open — check
+            the notification shade. iPhone can still miss scheduled web notifications unless the app
+            is opened that day.
+          </template>
         </p>
-        <p v-if="permission === 'granted'" class="mt-2 text-sm leading-6 text-muted">
+        <p v-if="permission === 'denied'" class="mt-2 text-sm leading-6 text-muted">
+          Notifications are blocked in this browser. Allow them in the site settings, then return
+          here to set reminders.
+        </p>
+        <p v-else-if="permission === 'granted'" class="mt-2 text-sm leading-6 text-muted">
           Background reminders:
           {{ backgroundReady ? 'on for this installed app' : 'only while Worknote is open' }}.
         </p>
