@@ -42,8 +42,8 @@ const activeTab = computed(() => route.meta.tab ?? 'today')
       </RouterView>
     </main>
 
-    <ToastStack />
-    <nav class="shrink-0 border-t border-line bg-card/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+    <nav class="relative z-10 shrink-0 overflow-visible border-t border-line bg-card/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      <ToastStack />
       <DateBar v-if="showDateBar" />
       <ul class="grid grid-cols-3">
         <li>

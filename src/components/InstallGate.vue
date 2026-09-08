@@ -4,19 +4,7 @@ import { useInstallPrompt } from '../composables/useInstallPrompt'
 
 const { canInstall, showInstalled, isIos, isAndroid, install } = useInstallPrompt()
 
-const title = computed(() =>
-  showInstalled.value ? 'Worknote is installed' : 'Add Worknote to your Home Screen',
-)
-
-const body = computed(() => {
-  if (showInstalled.value) {
-    return 'Open it from the Home Screen icon to record notes and get reminders. This browser page is only for installing the app.'
-  }
-  return 'Worknote is a Home Screen app. Install it, then open it from there — notes and reminders are not available in the browser.'
-})
-
 const how = computed(() => {
-  if (showInstalled.value) return ''
   if (isIos) {
     return 'On iPhone, tap Share, then Add to Home Screen. Open Worknote from the new icon next time.'
   }
@@ -33,17 +21,52 @@ const how = computed(() => {
 <template>
   <section
     class="mx-auto flex h-full max-h-full max-w-lg flex-col overflow-hidden bg-paper px-5 pt-[max(1.5rem,env(safe-area-inset-top))]"
-    aria-labelledby="install-title"
+    :aria-labelledby="showInstalled ? 'install-title' : 'splash-title'"
   >
-    <div class="min-h-0 flex-1 overflow-y-auto pb-4">
-      <p class="text-sm font-semibold uppercase tracking-[0.22em] text-neon">
-        {{ showInstalled ? 'Ready' : 'Install' }}
-      </p>
+    <div v-if="showInstalled" class="min-h-0 flex-1 overflow-y-auto pb-4">
+      <p class="text-sm font-semibold uppercase tracking-[0.22em] text-neon">Ready</p>
       <h1 id="install-title" class="mt-1 font-display text-4xl leading-tight text-ink">
-        {{ title }}
+        Worknote is installed
       </h1>
-      <p class="mt-3 text-base leading-7 text-muted">{{ body }}</p>
-      <p v-if="how" class="mt-6 rounded-3xl border border-line bg-card p-4 text-sm leading-6 text-muted">
+      <p class="mt-3 text-base leading-7 text-muted">
+        Open it from the Home Screen icon to record notes and get reminders. This browser page is
+        only for installing the app.
+      </p>
+    </div>
+
+    <div v-else class="min-h-0 flex-1 overflow-y-auto pb-4">
+      <p class="text-sm font-semibold uppercase tracking-[0.22em] text-neon">Welcome</p>
+      <h1 id="splash-title" class="mt-1 font-display text-4xl leading-tight text-ink">Worknote</h1>
+      <p class="mt-3 text-base leading-7 text-muted">
+        A private daily log of what you worked on. Record a short voice note, or type it if you
+        prefer.
+      </p>
+
+      <ul class="mt-8 space-y-3">
+        <li class="rounded-3xl border border-line bg-card p-4">
+          <p class="font-display text-lg text-ink">Capture the day</p>
+          <p class="mt-1 text-sm leading-6 text-muted">
+            Tap the mic to record. Captions appear as you speak, and you can edit them afterwards.
+            Prefer typing? Use Type a note instead.
+          </p>
+        </li>
+        <li class="rounded-3xl border border-line bg-card p-4">
+          <p class="font-display text-lg text-ink">Stays on this device</p>
+          <p class="mt-1 text-sm leading-6 text-muted">
+            Audio and transcripts live in this browser, not on a server. Optional reminders can
+            nudge you on weekdays.
+          </p>
+        </li>
+        <li class="rounded-3xl border border-line bg-card p-4">
+          <p class="font-display text-lg text-ink">Install to your Home Screen</p>
+          <p class="mt-1 text-sm leading-6 text-muted">
+            Worknote only runs as an app on your Home Screen. Notes and reminders are not available
+            in this browser tab — add it, then open it from the icon.
+          </p>
+        </li>
+      </ul>
+
+      <p class="mt-6 rounded-3xl border border-line bg-card p-4 text-sm leading-6 text-muted">
         {{ how }}
       </p>
     </div>
@@ -60,11 +83,7 @@ const how = computed(() => {
       v-else
       class="mb-[max(1.5rem,env(safe-area-inset-bottom))] text-sm leading-6 text-muted"
     >
-      {{
-        showInstalled
-          ? 'You can close this tab.'
-          : 'Come back here only if you still need the install steps.'
-      }}
+      {{ showInstalled ? 'You can close this tab.' : 'Add Worknote, then open it from your Home Screen.' }}
     </p>
   </section>
 </template>

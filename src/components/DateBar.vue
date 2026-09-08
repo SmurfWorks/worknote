@@ -6,7 +6,16 @@ const { date, dateValid, isToday, goToDate, jumpToToday, recording } = useDayDat
 </script>
 
 <template>
-  <div class="border-b border-line px-3 py-2">
+  <div class="relative border-b border-line px-3 py-2">
+    <button
+      v-if="!isToday && isDateKey(date)"
+      type="button"
+      class="absolute bottom-[calc(100%+0.5rem)] left-1/2 z-20 -translate-x-1/2 rounded-full bg-accent px-3 py-1.5 text-xs font-bold text-on-accent shadow-lg disabled:opacity-40"
+      :disabled="recording"
+      @click="jumpToToday"
+    >
+      Jump to today
+    </button>
     <div class="flex items-center gap-2">
       <button
         type="button"
@@ -52,14 +61,5 @@ const { date, dateValid, isToday, goToDate, jumpToToday, recording } = useDayDat
         </svg>
       </button>
     </div>
-    <button
-      v-if="!isToday && isDateKey(date)"
-      type="button"
-      class="mt-1 w-full text-xs font-semibold text-accent disabled:opacity-40"
-      :disabled="recording"
-      @click="jumpToToday"
-    >
-      Jump to today
-    </button>
   </div>
 </template>

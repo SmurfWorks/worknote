@@ -2,12 +2,12 @@
 import { onMounted, ref } from 'vue'
 import { useOnboarding } from '../composables/useOnboarding'
 import { useReminders } from '../composables/useReminders'
+import { showToast } from '../composables/useToasts'
 import { getSettings, saveSettings } from '../lib/db'
 import { sendTestNotification } from '../lib/reminders'
 import { normalizeTime, reminderTimes, WEEKDAYS } from '../lib/types'
 
 const settings = ref(null)
-const savedFlash = ref(false)
 const MAX_TIMES = 8
 const { permission, backgroundReady, requestPermission, refreshSchedule } = useReminders()
 const { show: showOnboarding } = useOnboarding()
@@ -19,11 +19,8 @@ async function persist() {
   settings.value.time = times[0]
   settings.value.lastReminderCheckAt = new Date().toISOString()
   await saveSettings(settings.value)
+  showToast('Saved')
   await refreshSchedule()
-  savedFlash.value = true
-  window.setTimeout(() => {
-    savedFlash.value = false
-  }, 1200)
 }
 
 function toggleDay(day) {
@@ -104,8 +101,6 @@ onMounted(async () => {
     <p class="mt-2 text-sm leading-6 text-muted">
       Choose when Worknote should nudge you. Notes never leave this device.
     </p>
-
-    <p v-if="savedFlash" class="mt-3 text-sm font-medium text-neon">Saved</p>
 
     <div v-if="settings" class="mt-6 space-y-4">
       <section class="rounded-3xl border border-line bg-card p-4">
