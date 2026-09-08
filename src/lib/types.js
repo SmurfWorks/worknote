@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS = {
   remindersEnabled: true,
   lastNotifiedDate: null,
   lastNotifiedSlot: null,
+  lastReminderCheckAt: null,
 }
 
 export function normalizeTime(value) {
@@ -27,10 +28,11 @@ export function normalizeTime(value) {
 }
 
 export function reminderTimes(settings) {
-  const values = [
-    ...(Array.isArray(settings?.times) ? settings.times : []),
-    ...(settings?.time ? [settings.time] : []),
-  ]
+  const values = Array.isArray(settings?.times)
+    ? settings.times
+    : settings?.time
+      ? [settings.time]
+      : []
   const unique = [...new Set(values.map(normalizeTime).filter(Boolean))]
   unique.sort()
   return unique.length ? unique : [...DEFAULT_SETTINGS.times]

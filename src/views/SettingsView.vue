@@ -1,6 +1,5 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { useInstallPrompt } from '../composables/useInstallPrompt'
 import { useOnboarding } from '../composables/useOnboarding'
 import { useReminders } from '../composables/useReminders'
 import { getSettings, saveSettings } from '../lib/db'
@@ -11,13 +10,15 @@ const settings = ref(null)
 const savedFlash = ref(false)
 const MAX_TIMES = 8
 const { permission, backgroundReady, requestPermission, refreshSchedule } = useReminders()
-const { canInstall, isStandalone, isIos, isAndroid, install } = useInstallPrompt()
 const { show: showOnboarding } = useOnboarding()
 
 async function persist() {
   if (!settings.value) return
+  const times = reminderTimes({ times: settings.value.times })
+  settings.value.times = times
+  settings.value.time = times[0]
+  settings.value.lastReminderCheckAt = new Date().toISOString()
   await saveSettings(settings.value)
-  settings.value.times = reminderTimes(settings.value)
   await refreshSchedule()
   savedFlash.value = true
   window.setTimeout(() => {
@@ -44,6 +45,7 @@ function updateTime(index, value) {
   const times = [...settings.value.times]
   times[index] = next
   settings.value.times = reminderTimes({ times })
+  settings.value.time = settings.value.times[0]
   persist()
 }
 
@@ -63,12 +65,14 @@ function addTime() {
     candidate = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
   }
   settings.value.times = reminderTimes({ times: [...settings.value.times, candidate] })
+  settings.value.time = settings.value.times[0]
   persist()
 }
 
 function removeTime(index) {
   if (!settings.value || settings.value.times.length <= 1) return
   settings.value.times = settings.value.times.filter((_, current) => current !== index)
+  settings.value.time = settings.value.times[0]
   persist()
 }
 
@@ -199,23 +203,6 @@ onMounted(async () => {
         >
           Send a test notification
         </button>
-        <button
-          v-if="canInstall"
-          type="button"
-          class="mt-3 rounded-full bg-accent px-4 py-2.5 text-sm font-bold text-on-accent"
-          @click="install"
-        >
-          Add to Home Screen
-        </button>
-        <p v-else-if="isStandalone" class="mt-3 text-sm text-muted">
-          Running from your Home Screen.
-        </p>
-        <p v-else-if="isIos" class="mt-3 text-sm leading-6 text-muted">
-          On iPhone, tap Share, then Add to Home Screen.
-        </p>
-        <p v-else-if="isAndroid" class="mt-3 text-sm leading-6 text-muted">
-          Use the browser menu to Add to Home Screen or Install app.
-        </p>
       </section>
 
       <section class="rounded-3xl border border-line bg-card p-4">

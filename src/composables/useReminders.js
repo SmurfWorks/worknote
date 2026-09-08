@@ -88,8 +88,6 @@ export function useReminders() {
     await scheduleTimestampTrigger()
     await registerPeriodicSync()
     await refreshBackgroundReady()
-    const registration = await getServiceWorkerRegistration()
-    registration?.active?.postMessage('check-reminder')
   }
 
   async function startReminderLoop() {

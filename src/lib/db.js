@@ -30,6 +30,7 @@ function hydrateSettings(stored) {
     time: times[0],
     lastNotifiedDate,
     lastNotifiedSlot,
+    lastReminderCheckAt: stored?.lastReminderCheckAt ?? null,
   }
 }
 
@@ -41,7 +42,7 @@ export async function getSettings() {
 
 export async function saveSettings(settings) {
   const db = await getDb()
-  const times = reminderTimes(settings)
+  const times = reminderTimes({ times: settings.times })
   await db.put(
     'meta',
     {
@@ -51,6 +52,7 @@ export async function saveSettings(settings) {
       remindersEnabled: settings.remindersEnabled,
       lastNotifiedDate: settings.lastNotifiedDate ?? null,
       lastNotifiedSlot: settings.lastNotifiedSlot ?? null,
+      lastReminderCheckAt: settings.lastReminderCheckAt ?? null,
     },
     SETTINGS_KEY,
   )

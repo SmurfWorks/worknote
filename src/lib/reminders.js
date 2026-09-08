@@ -37,6 +37,25 @@ export function latestPastReminderSlot(settings, now = new Date()) {
   return latest
 }
 
+export function dueReminderSlot(settings, now = new Date()) {
+  if (!settings.remindersEnabled || !settings.days.includes(now.getDay())) return null
+  const times = reminderTimes(settings)
+  if (times.length === 0) return null
+  const date = todayKey(now)
+  const nowMs = now.getTime()
+  const checked = settings.lastReminderCheckAt ? new Date(settings.lastReminderCheckAt).getTime() : nowMs
+  const lastCheckMs = Number.isNaN(checked) ? nowMs : checked
+  let due = null
+  for (const time of times) {
+    const [hours, minutes] = time.split(':').map(Number)
+    const at = new Date(now)
+    at.setHours(hours, minutes, 0, 0)
+    const atMs = at.getTime()
+    if (atMs > lastCheckMs && atMs <= nowMs) due = slotKey(date, time)
+  }
+  return due
+}
+
 export async function isPastReminderTime(now = new Date()) {
   const settings = await getSettings()
   return Boolean(latestPastReminderSlot(settings, now))
@@ -49,16 +68,19 @@ export async function shouldNudgeToday(now = new Date()) {
 }
 
 export async function shouldSendNotification(now = new Date()) {
-  if (!(await shouldNudgeToday(now))) return false
   const settings = await getSettings()
-  const slot = latestPastReminderSlot(settings, now)
-  return Boolean(slot) && settings.lastNotifiedSlot !== slot
+  const slot = dueReminderSlot(settings, now)
+  if (!slot || settings.lastNotifiedSlot === slot) return false
+  const note = await getNote(todayKey(now))
+  return !noteHasContent(note)
 }
 
 export async function markNotified(date = todayKey(), slot = null) {
   const settings = await getSettings()
+  const now = new Date()
   settings.lastNotifiedDate = date
-  settings.lastNotifiedSlot = slot ?? latestPastReminderSlot(settings) ?? `${date}T${reminderTimes(settings)[0]}`
+  settings.lastNotifiedSlot = slot ?? dueReminderSlot(settings, now) ?? latestPastReminderSlot(settings, now)
+  settings.lastReminderCheckAt = now.toISOString()
   await saveSettings(settings)
 }
 

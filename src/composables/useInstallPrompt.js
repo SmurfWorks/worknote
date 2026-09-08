@@ -1,18 +1,27 @@
 import { computed, ref } from 'vue'
 import { isAndroid, isIos } from '../lib/device'
 
-const DISMISS_KEY = 'worknote.installPromptDismissed'
+const INSTALLED_KEY = 'worknote.pwaInstalled'
 
 const deferred = ref(null)
 const isStandalone = ref(false)
-const dismissed = ref(false)
+const installed = ref(false)
 let started = false
 
-function readDismissed() {
+function readInstalled() {
   try {
-    return localStorage.getItem(DISMISS_KEY) === '1'
+    return localStorage.getItem(INSTALLED_KEY) === '1'
   } catch {
     return false
+  }
+}
+
+function persistInstalled() {
+  installed.value = true
+  try {
+    localStorage.setItem(INSTALLED_KEY, '1')
+  } catch {
+    // Private mode can block storage; still remember this session.
   }
 }
 
@@ -26,11 +35,20 @@ function detectStandalone() {
   )
 }
 
+function isFileApp() {
+  return typeof location !== 'undefined' && location.protocol === 'file:'
+}
+
+function syncStandalone() {
+  isStandalone.value = detectStandalone()
+  if (isStandalone.value) persistInstalled()
+}
+
 export function startInstallPrompt() {
   if (started || typeof window === 'undefined') return
   started = true
-  dismissed.value = readDismissed()
-  isStandalone.value = detectStandalone()
+  installed.value = readInstalled()
+  syncStandalone()
 
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault()
@@ -38,52 +56,39 @@ export function startInstallPrompt() {
   })
   window.addEventListener('appinstalled', () => {
     deferred.value = null
-    isStandalone.value = true
+    persistInstalled()
   })
 
-  const standaloneQuery = window.matchMedia('(display-mode: standalone)')
-  standaloneQuery.addEventListener?.('change', () => {
-    isStandalone.value = detectStandalone()
-  })
+  for (const mode of ['standalone', 'fullscreen', 'window-controls-overlay']) {
+    const query = window.matchMedia(`(display-mode: ${mode})`)
+    query.addEventListener?.('change', syncStandalone)
+  }
 }
 
 export function useInstallPrompt() {
   startInstallPrompt()
 
-  const canInstall = computed(() => Boolean(deferred.value) && !isStandalone.value)
+  const canUseApp = computed(() => isStandalone.value || isFileApp())
+  const canInstall = computed(() => Boolean(deferred.value) && !canUseApp.value)
+  const showInstalled = computed(() => installed.value && !canUseApp.value)
   const ios = isIos()
   const android = isAndroid()
-  const showPrompt = computed(() => {
-    if (isStandalone.value || dismissed.value) return false
-    return canInstall.value || ios || android
-  })
 
   async function install() {
     if (!deferred.value) return
     await deferred.value.prompt()
     const choice = await deferred.value.userChoice
     deferred.value = null
-    if (choice?.outcome === 'accepted') {
-      isStandalone.value = true
-    }
-  }
-
-  function dismiss() {
-    try {
-      localStorage.setItem(DISMISS_KEY, '1')
-    } catch {
-      // Private mode can block storage; still hide this session.
-    }
-    dismissed.value = true
+    if (choice?.outcome === 'accepted') persistInstalled()
   }
 
   return {
+    canUseApp,
     canInstall,
+    showInstalled,
     isStandalone,
     isIos: ios,
     isAndroid: android,
-    showPrompt,
     install,
-    dismiss,
   }
 }
