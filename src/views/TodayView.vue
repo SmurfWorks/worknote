@@ -223,7 +223,7 @@ onUnmounted(() => {
         />
         <button
           type="button"
-          class="mt-6 w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm font-semibold text-ink"
+          class="mt-6 w-full rounded-full bg-neon px-4 py-2.5 text-sm font-semibold text-on-accent"
           @click="writeInstead"
         >
           Type a note instead
