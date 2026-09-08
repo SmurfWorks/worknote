@@ -9,7 +9,8 @@ defineProps({
 
 const emit = defineEmits(['captured', 'recording'])
 
-const { isRecording, elapsedSeconds, error: recordError, levels, start, stop } = useRecorder()
+const { isRecording, elapsedSeconds, error: recordError, levels, prepare, start, stop } =
+  useRecorder()
 const {
   liveText,
   error: transcriptError,
@@ -31,13 +32,15 @@ async function toggle() {
     return
   }
 
+  startTranscript()
+  prepare()
   try {
     await start()
   } catch {
+    stopTranscript()
     emit('recording', false)
     return
   }
-  startTranscript()
   emit('recording', true)
 }
 </script>
