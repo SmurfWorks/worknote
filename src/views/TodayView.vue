@@ -1,22 +1,16 @@
 <script setup>
-import { computed, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import RecordPanel from '../components/RecordPanel.vue'
+import { setDayLeaveHandler, useDayDate } from '../composables/useDayDate'
+import { showToast } from '../composables/useToasts'
 import { deleteNote, getNote, noteHasContent, saveNote } from '../lib/db'
-import {
-  dateRelationLabel,
-  formatDisplayDate,
-  isDateKey,
-  shiftDateKey,
-  todayKey,
-} from '../lib/dates'
+import { dateRelationLabel, formatDisplayDate } from '../lib/dates'
 import { shouldNudgeToday } from '../lib/reminders'
 
 defineOptions({ name: 'TodayView' })
 
-const route = useRoute()
-const router = useRouter()
+const { date, dateValid, isToday, recording } = useDayDate()
 const note = ref(null)
 const loading = ref(true)
 const showRecorder = ref(true)
@@ -25,23 +19,12 @@ const confirmRerecord = ref(false)
 const confirmDelete = ref(false)
 const audioUrl = ref(null)
 const saveError = ref(null)
-const recording = ref(false)
 let saveTimer = null
+let hydrating = false
+let dirty = false
 
-const date = computed(() => {
-  const fromParams = String(route.params.date ?? '')
-  const fromQuery = String(route.query.date ?? '')
-  if (route.name === 'note') {
-    return isDateKey(fromParams) ? fromParams : ''
-  }
-  if (isDateKey(fromQuery)) return fromQuery
-  return todayKey()
-})
-
-const dateValid = computed(() => isDateKey(date.value))
 const heading = computed(() => (dateValid.value ? formatDisplayDate(date.value) : 'Note'))
 const eyebrow = computed(() => (dateValid.value ? dateRelationLabel(date.value) : 'Note'))
-const isToday = computed(() => date.value === todayKey())
 const hasNote = computed(() => noteHasContent(note.value))
 const recordHint = computed(() =>
   isToday.value ? 'Tap to record today’s note' : 'Tap to record this day’s note',
@@ -59,25 +42,6 @@ function syncAudio(current) {
   }
 }
 
-function goToDate(nextKey) {
-  if (recording.value || !isDateKey(nextKey)) return
-  persistTranscript()
-  if (route.name === 'note') {
-    router.replace({ name: 'note', params: { date: nextKey } })
-    return
-  }
-  if (nextKey === todayKey()) {
-    router.replace({ path: '/' })
-    return
-  }
-  router.replace({ path: '/', query: { date: nextKey } })
-}
-
-function jumpToToday() {
-  if (recording.value) return
-  router.push({ path: '/' })
-}
-
 async function refresh() {
   if (!dateValid.value) {
     note.value = null
@@ -86,6 +50,8 @@ async function refresh() {
     loading.value = false
     return
   }
+  hydrating = true
+  dirty = false
   saveError.value = null
   confirmRerecord.value = false
   confirmDelete.value = false
@@ -93,19 +59,30 @@ async function refresh() {
   showRecorder.value = !note.value
   showNudge.value = isToday.value && (await shouldNudgeToday())
   loading.value = false
+  await nextTick()
+  hydrating = false
 }
 
-async function persistTranscript() {
+async function persistTranscript({ announceSave = false } = {}) {
   if (!note.value) return
-  await saveNote({
+  const result = await saveNote({
     ...note.value,
     transcript: note.value.transcript,
     updatedAt: new Date().toISOString(),
   })
+  if (result === 'removed') {
+    dirty = false
+    showToast('Note removed', 'muted')
+    return
+  }
+  if (result === 'saved' && announceSave && dirty) {
+    dirty = false
+    showToast('Note saved')
+  }
 }
 
 function queuePersist() {
-  if (!note.value) return
+  if (!note.value || hydrating) return
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     persistTranscript()
@@ -129,6 +106,8 @@ async function onCaptured(payload) {
     note.value = next
     showRecorder.value = false
     showNudge.value = false
+    dirty = false
+    showToast('Note saved')
   } catch {
     saveError.value = 'Could not save this note on your device. Try again.'
   }
@@ -144,7 +123,9 @@ function requestNewRecording() {
 
 async function writeInstead() {
   const now = new Date().toISOString()
-  const next = {
+  hydrating = true
+  dirty = false
+  note.value = {
     date: date.value,
     audioBlob: note.value?.audioBlob ?? null,
     audioMimeType: note.value?.audioMimeType ?? null,
@@ -152,24 +133,28 @@ async function writeInstead() {
     createdAt: note.value?.createdAt ?? now,
     updatedAt: now,
   }
-  await saveNote(next)
-  note.value = next
   showRecorder.value = false
   showNudge.value = false
+  await nextTick()
+  hydrating = false
 }
 
 async function remove() {
   await deleteNote(date.value)
   confirmDelete.value = false
   note.value = null
+  dirty = false
   revokeUrl()
   showRecorder.value = true
   showNudge.value = isToday.value && (await shouldNudgeToday())
+  showToast('Note removed', 'muted')
 }
 
 watch(
   () => note.value?.transcript,
   () => {
+    if (hydrating || !note.value) return
+    dirty = true
     queuePersist()
   },
 )
@@ -189,15 +174,18 @@ watch(
 )
 
 onActivated(() => {
+  setDayLeaveHandler(() => persistTranscript({ announceSave: true }))
   if (recording.value) return
   refresh()
 })
 
 onDeactivated(() => {
-  persistTranscript()
+  setDayLeaveHandler(null)
+  persistTranscript({ announceSave: true })
 })
 
 onUnmounted(() => {
+  setDayLeaveHandler(null)
   if (saveTimer) clearTimeout(saveTimer)
   revokeUrl()
 })
@@ -210,61 +198,6 @@ onUnmounted(() => {
     <p class="mt-2 text-sm leading-6 text-muted">
       A short voice note of what you worked on. Captions and audio stay on this device.
     </p>
-
-    <div class="mt-4 flex items-center gap-2">
-      <button
-        type="button"
-        class="inline-flex size-11 items-center justify-center rounded-full border border-line bg-card text-ink disabled:opacity-40"
-        :disabled="recording || !dateValid"
-        aria-label="Previous day"
-        @click="goToDate(shiftDateKey(date, -1))"
-      >
-        <svg viewBox="0 0 24 24" class="size-5" fill="none" aria-hidden="true">
-          <path
-            d="M15 6 9 12l6 6"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-      <label class="sr-only" for="note-date">Note date</label>
-      <input
-        id="note-date"
-        :value="date"
-        type="date"
-        class="min-w-0 flex-1 rounded-2xl border border-line bg-card px-3 py-2.5 text-sm font-medium text-ink disabled:opacity-40"
-        :disabled="recording"
-        @change="goToDate($event.target.value)"
-      />
-      <button
-        type="button"
-        class="inline-flex size-11 items-center justify-center rounded-full border border-line bg-card text-ink disabled:opacity-40"
-        :disabled="recording || !dateValid"
-        aria-label="Next day"
-        @click="goToDate(shiftDateKey(date, 1))"
-      >
-        <svg viewBox="0 0 24 24" class="size-5" fill="none" aria-hidden="true">
-          <path
-            d="M9 6l6 6-6 6"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-    </div>
-    <button
-      v-if="!isToday"
-      type="button"
-      class="mt-2 text-sm font-semibold text-accent disabled:opacity-40"
-        :disabled="recording"
-        @click="jumpToToday"
-    >
-      Jump to today
-    </button>
 
     <div
       v-if="showNudge && !hasNote"
@@ -286,7 +219,7 @@ onUnmounted(() => {
         />
         <button
           type="button"
-          class="mt-6 w-full text-center text-sm font-semibold text-muted"
+          class="mt-6 w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm font-semibold text-ink"
           @click="writeInstead"
         >
           Type a note instead
@@ -318,8 +251,7 @@ onUnmounted(() => {
           rows="6"
           class="mt-2 w-full resize-y rounded-2xl border border-line bg-paper px-3 py-3 text-sm leading-6 text-ink outline-none focus:border-accent"
           placeholder="Edit the captions, or type what you worked on."
-          @input="queuePersist"
-          @blur="persistTranscript"
+          @blur="persistTranscript({ announceSave: true })"
         />
 
         <button

@@ -48,7 +48,21 @@ export async function getNote(date) {
 
 export async function saveNote(note) {
   const db = await getDb()
-  await db.put('notes', note)
+  const key = note.date
+  if (!noteHasContent(note)) {
+    const existed = Boolean(await db.get('notes', key))
+    if (existed) await db.delete('notes', key)
+    return existed ? 'removed' : 'empty'
+  }
+  await db.put('notes', {
+    date: note.date,
+    audioBlob: note.audioBlob ?? null,
+    audioMimeType: note.audioMimeType ?? null,
+    transcript: note.transcript ?? '',
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+  })
+  return 'saved'
 }
 
 export async function deleteNote(date) {
@@ -59,10 +73,18 @@ export async function deleteNote(date) {
 export async function listNotes() {
   const db = await getDb()
   const notes = await db.getAll('notes')
-  return notes.sort((a, b) => b.date.localeCompare(a.date))
+  const kept = []
+  for (const note of notes) {
+    if (noteHasContent(note)) {
+      kept.push(note)
+    } else {
+      await db.delete('notes', note.date)
+    }
+  }
+  return kept.sort((a, b) => b.date.localeCompare(a.date))
 }
 
 export function noteHasContent(note) {
   if (!note) return false
-  return Boolean(note.audioBlob) || note.transcript.trim().length > 0
+  return Boolean(note.audioBlob) || Boolean(note.transcript?.trim())
 }
