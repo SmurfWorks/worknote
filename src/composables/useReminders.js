@@ -5,20 +5,23 @@ import {
   maybeNotifyFromPage,
   nextReminderAt,
   scheduleTimestampTrigger,
+  sendTestNotification,
 } from '../lib/reminders'
 
 let timeoutId = null
 let started = false
+const backgroundReady = ref(false)
 
 async function registerPeriodicSync() {
   const registration = await getServiceWorkerRegistration()
-  if (!registration?.periodicSync) return
+  if (!registration?.periodicSync) return false
   try {
     await registration.periodicSync.register('worknote-reminder', {
       minInterval: 15 * 60 * 1000,
     })
+    return true
   } catch {
-    // Not installed as a PWA, or the browser denied background sync.
+    return false
   }
 }
 
@@ -39,9 +42,10 @@ async function armForegroundTimer() {
 }
 
 function onVisibilityChange() {
+  maybeNotifyFromPage()
   if (document.visibilityState === 'visible') {
-    maybeNotifyFromPage()
     armForegroundTimer()
+    registerPeriodicSync()
   }
 }
 
@@ -49,6 +53,20 @@ export function useReminders() {
   const permission = ref(
     typeof Notification === 'undefined' ? 'denied' : Notification.permission,
   )
+
+  async function refreshBackgroundReady() {
+    const registration = await getServiceWorkerRegistration()
+    if (!registration?.periodicSync) {
+      backgroundReady.value = false
+      return
+    }
+    try {
+      const tags = await registration.periodicSync.getTags()
+      backgroundReady.value = tags.includes('worknote-reminder')
+    } catch {
+      backgroundReady.value = false
+    }
+  }
 
   async function requestPermission() {
     if (typeof Notification === 'undefined') {
@@ -58,8 +76,9 @@ export function useReminders() {
     permission.value = await Notification.requestPermission()
     if (permission.value === 'granted') {
       await registerPeriodicSync()
+      await refreshBackgroundReady()
       await scheduleTimestampTrigger()
-      await maybeNotifyFromPage()
+      await sendTestNotification()
     }
     return permission.value
   }
@@ -68,6 +87,7 @@ export function useReminders() {
     await armForegroundTimer()
     await scheduleTimestampTrigger()
     await registerPeriodicSync()
+    await refreshBackgroundReady()
     const registration = await getServiceWorkerRegistration()
     registration?.active?.postMessage('check-reminder')
   }
@@ -80,7 +100,6 @@ export function useReminders() {
     started = true
     permission.value =
       typeof Notification === 'undefined' ? 'denied' : Notification.permission
-    await maybeNotifyFromPage()
     await refreshSchedule()
     document.addEventListener('visibilitychange', onVisibilityChange)
     setInterval(() => {
@@ -95,6 +114,7 @@ export function useReminders() {
 
   return {
     permission,
+    backgroundReady,
     requestPermission,
     refreshSchedule,
     startReminderLoop,

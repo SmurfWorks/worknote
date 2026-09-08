@@ -4,17 +4,20 @@ import { useInstallPrompt } from '../composables/useInstallPrompt'
 import { useOnboarding } from '../composables/useOnboarding'
 import { useReminders } from '../composables/useReminders'
 import { getSettings, saveSettings } from '../lib/db'
-import { WEEKDAYS } from '../lib/types'
+import { sendTestNotification } from '../lib/reminders'
+import { normalizeTime, reminderTimes, WEEKDAYS } from '../lib/types'
 
 const settings = ref(null)
 const savedFlash = ref(false)
-const { permission, requestPermission, refreshSchedule } = useReminders()
+const MAX_TIMES = 8
+const { permission, backgroundReady, requestPermission, refreshSchedule } = useReminders()
 const { canInstall, isStandalone, isIos, isAndroid, install } = useInstallPrompt()
 const { show: showOnboarding } = useOnboarding()
 
 async function persist() {
   if (!settings.value) return
   await saveSettings(settings.value)
+  settings.value.times = reminderTimes(settings.value)
   await refreshSchedule()
   savedFlash.value = true
   window.setTimeout(() => {
@@ -34,9 +37,48 @@ function toggleDay(day) {
   persist()
 }
 
+function updateTime(index, value) {
+  if (!settings.value) return
+  const next = normalizeTime(value)
+  if (!next) return
+  const times = [...settings.value.times]
+  times[index] = next
+  settings.value.times = reminderTimes({ times })
+  persist()
+}
+
+function addTime() {
+  if (!settings.value || settings.value.times.length >= MAX_TIMES) return
+  const existing = new Set(settings.value.times)
+  let hours = 12
+  let minutes = 0
+  if (settings.value.times.length) {
+    const [lastHours, lastMinutes] = settings.value.times.at(-1).split(':').map(Number)
+    minutes = lastMinutes
+    hours = (lastHours + 1) % 24
+  }
+  let candidate = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+  while (existing.has(candidate)) {
+    hours = (hours + 1) % 24
+    candidate = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+  }
+  settings.value.times = reminderTimes({ times: [...settings.value.times, candidate] })
+  persist()
+}
+
+function removeTime(index) {
+  if (!settings.value || settings.value.times.length <= 1) return
+  settings.value.times = settings.value.times.filter((_, current) => current !== index)
+  persist()
+}
+
 async function enableNotifications() {
   await requestPermission()
   await persist()
+}
+
+async function testNotification() {
+  await sendTestNotification()
 }
 
 const permissionLabel = {
@@ -47,6 +89,7 @@ const permissionLabel = {
 
 onMounted(async () => {
   settings.value = await getSettings()
+  await refreshSchedule()
 })
 </script>
 
@@ -65,7 +108,7 @@ onMounted(async () => {
         <div class="flex items-center justify-between gap-3">
           <div>
             <h2 class="font-display text-xl text-ink">Reminders</h2>
-            <p class="mt-1 text-sm text-muted">A notification on the days and time you pick.</p>
+            <p class="mt-1 text-sm text-muted">A notification on the days and times you pick.</p>
           </div>
           <label class="inline-flex cursor-pointer items-center">
             <span class="sr-only">Enable reminders</span>
@@ -97,23 +140,48 @@ onMounted(async () => {
           </button>
         </div>
 
-        <label class="mt-4 block text-sm font-medium text-ink" for="reminder-time">Time</label>
-        <input
-          id="reminder-time"
-          v-model="settings.time"
-          type="time"
-          class="mt-2 rounded-2xl border border-line bg-paper px-3 py-2 text-ink"
-          @input="persist"
-          @change="persist"
-        />
+        <p class="mt-4 text-sm font-medium text-ink">Times</p>
+        <ul class="mt-2 space-y-2">
+          <li v-for="(time, index) in settings.times" :key="index" class="flex gap-2">
+            <label class="sr-only" :for="`reminder-time-${index}`">Reminder time {{ index + 1 }}</label>
+            <input
+              :id="`reminder-time-${index}`"
+              :value="time"
+              type="time"
+              class="min-w-0 flex-1 rounded-2xl border border-line bg-paper px-3 py-2 text-ink"
+              @change="updateTime(index, $event.target.value)"
+            />
+            <button
+              type="button"
+              class="rounded-full border border-line px-3 py-2 text-sm font-semibold text-ink disabled:opacity-40"
+              :disabled="settings.times.length <= 1"
+              @click="removeTime(index)"
+            >
+              Remove
+            </button>
+          </li>
+        </ul>
+        <button
+          v-if="settings.times.length < MAX_TIMES"
+          type="button"
+          class="mt-3 rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink"
+          @click="addTime"
+        >
+          Add a time
+        </button>
       </section>
 
       <section class="rounded-3xl border border-line bg-card p-4">
         <h2 class="font-display text-xl text-ink">Notifications</h2>
         <p class="mt-1 text-sm leading-6 text-muted">
-          Status: {{ permissionLabel[permission] }}. Install Worknote on your home screen for more
-          reliable weekday nudges. iPhone can still miss scheduled web notifications unless the app
-          is opened that day.
+          Status: {{ permissionLabel[permission] }}. Android needs Worknote installed on the home
+          screen, then Allow notifications. The banner may not pop while the app is open — check the
+          notification shade. iPhone can still miss scheduled web notifications unless the app is
+          opened that day.
+        </p>
+        <p v-if="permission === 'granted'" class="mt-2 text-sm leading-6 text-muted">
+          Background reminders:
+          {{ backgroundReady ? 'on for this installed app' : 'only while Worknote is open' }}.
         </p>
         <button
           v-if="permission !== 'granted'"
@@ -122,6 +190,14 @@ onMounted(async () => {
           @click="enableNotifications"
         >
           Allow notifications
+        </button>
+        <button
+          v-else
+          type="button"
+          class="mt-4 rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink"
+          @click="testNotification"
+        >
+          Send a test notification
         </button>
         <button
           v-if="canInstall"

@@ -1,5 +1,5 @@
 import { openDB } from 'idb'
-import { DEFAULT_SETTINGS } from './types'
+import { DEFAULT_SETTINGS, normalizeTime, reminderTimes } from './types'
 
 const SETTINGS_KEY = 'settings'
 
@@ -16,26 +16,41 @@ function getDb() {
   })
 }
 
-export async function getSettings() {
-  const db = await getDb()
-  const stored = await db.get('meta', SETTINGS_KEY)
-  if (!stored) return { ...DEFAULT_SETTINGS, days: [...DEFAULT_SETTINGS.days] }
+function hydrateSettings(stored) {
+  const times = reminderTimes(stored ?? {})
+  const lastNotifiedDate = stored?.lastNotifiedDate ?? null
+  const lastNotifiedSlot =
+    stored?.lastNotifiedSlot ??
+    (lastNotifiedDate && stored?.time ? `${lastNotifiedDate}T${normalizeTime(stored.time) ?? stored.time}` : null)
   return {
     ...DEFAULT_SETTINGS,
     ...stored,
-    days: stored.days?.length ? [...stored.days] : [...DEFAULT_SETTINGS.days],
+    days: stored?.days?.length ? [...stored.days] : [...DEFAULT_SETTINGS.days],
+    times,
+    time: times[0],
+    lastNotifiedDate,
+    lastNotifiedSlot,
   }
+}
+
+export async function getSettings() {
+  const db = await getDb()
+  const stored = await db.get('meta', SETTINGS_KEY)
+  return hydrateSettings(stored)
 }
 
 export async function saveSettings(settings) {
   const db = await getDb()
+  const times = reminderTimes(settings)
   await db.put(
     'meta',
     {
       days: [...settings.days],
-      time: settings.time,
+      times,
+      time: times[0],
       remindersEnabled: settings.remindersEnabled,
       lastNotifiedDate: settings.lastNotifiedDate ?? null,
+      lastNotifiedSlot: settings.lastNotifiedSlot ?? null,
     },
     SETTINGS_KEY,
   )

@@ -20,7 +20,7 @@ self.addEventListener('periodicsync', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data === 'check-reminder') {
-    maybeNotifyFromServiceWorker(self.registration)
+    event.waitUntil(maybeNotifyFromServiceWorker(self.registration))
   }
 })
 

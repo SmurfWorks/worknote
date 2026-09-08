@@ -13,10 +13,12 @@ const activeTab = computed(() => route.meta.tab ?? 'today')
 </script>
 
 <template>
-  <div class="mx-auto flex min-h-dvh max-w-lg flex-col bg-paper">
+  <div
+    class="mx-auto flex h-full max-h-full max-w-lg flex-col overflow-hidden bg-paper pt-[env(safe-area-inset-top)]"
+  >
     <header
       v-if="showBack"
-      class="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-paper/90 px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur"
+      class="flex shrink-0 items-center gap-2 border-b border-line bg-paper/90 px-3 py-3 backdrop-blur"
     >
       <RouterLink
         to="/history"
@@ -35,70 +37,66 @@ const activeTab = computed(() => route.meta.tab ?? 'today')
       </RouterLink>
     </header>
 
-    <main class="flex-1 px-4 pt-4" :class="showDateBar ? 'pb-44' : 'pb-28'">
+    <main class="min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-4">
       <InstallPrompt />
       <RouterView v-slot="{ Component }">
         <component :is="Component" />
       </RouterView>
     </main>
 
-    <div class="fixed inset-x-0 bottom-0 z-20">
-      <ToastStack />
-      <nav class="border-t border-line bg-card/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div class="mx-auto max-w-lg">
-          <DateBar v-if="showDateBar" />
-          <ul class="grid grid-cols-3">
-            <li>
-              <RouterLink
-                to="/"
-                class="flex flex-col items-center gap-1 py-3 text-xs font-semibold"
-                :class="activeTab === 'today' ? 'text-accent' : 'text-muted'"
-              >
-                <svg viewBox="0 0 24 24" class="size-6" fill="none" aria-hidden="true">
-                  <rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8" />
-                  <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-                </svg>
-                Today
-              </RouterLink>
-            </li>
-            <li>
-              <RouterLink
-                to="/history"
-                class="flex flex-col items-center gap-1 py-3 text-xs font-semibold"
-                :class="activeTab === 'history' ? 'text-accent' : 'text-muted'"
-              >
-                <svg viewBox="0 0 24 24" class="size-6" fill="none" aria-hidden="true">
-                  <path
-                    d="M5 6h14M5 12h14M5 18h9"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                  />
-                </svg>
-                History
-              </RouterLink>
-            </li>
-            <li>
-              <RouterLink
-                to="/settings"
-                class="flex flex-col items-center gap-1 py-3 text-xs font-semibold"
-                :class="activeTab === 'settings' ? 'text-accent' : 'text-muted'"
-              >
-                <svg viewBox="0 0 24 24" class="size-6" fill="none" aria-hidden="true">
-                  <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" />
-                  <path
-                    d="M12 4v2.2M12 17.8V20M4 12h2.2M17.8 12H20M6.3 6.3l1.6 1.6M16.1 16.1l1.6 1.6M6.3 17.7l1.6-1.6M16.1 7.9l1.6-1.6"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                  />
-                </svg>
-                Settings
-              </RouterLink>
-            </li>
-          </ul>
-        </div>
-      </nav>
-    </div>
+    <ToastStack />
+    <nav class="shrink-0 border-t border-line bg-card/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      <DateBar v-if="showDateBar" />
+      <ul class="grid grid-cols-3">
+        <li>
+          <RouterLink
+            to="/"
+            class="flex flex-col items-center gap-1 py-3 text-xs font-semibold"
+            :class="activeTab === 'today' ? 'text-accent' : 'text-muted'"
+          >
+            <svg viewBox="0 0 24 24" class="size-6" fill="none" aria-hidden="true">
+              <rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8" />
+              <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+            Today
+          </RouterLink>
+        </li>
+        <li>
+          <RouterLink
+            to="/history"
+            class="flex flex-col items-center gap-1 py-3 text-xs font-semibold"
+            :class="activeTab === 'history' ? 'text-accent' : 'text-muted'"
+          >
+            <svg viewBox="0 0 24 24" class="size-6" fill="none" aria-hidden="true">
+              <path
+                d="M5 6h14M5 12h14M5 18h9"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+            History
+          </RouterLink>
+        </li>
+        <li>
+          <RouterLink
+            to="/settings"
+            class="flex flex-col items-center gap-1 py-3 text-xs font-semibold"
+            :class="activeTab === 'settings' ? 'text-accent' : 'text-muted'"
+          >
+            <svg viewBox="0 0 24 24" class="size-6" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" />
+              <path
+                d="M12 4v2.2M12 17.8V20M4 12h2.2M17.8 12H20M6.3 6.3l1.6 1.6M16.1 16.1l1.6 1.6M6.3 17.7l1.6-1.6M16.1 7.9l1.6-1.6"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+            Settings
+          </RouterLink>
+        </li>
+      </ul>
+    </nav>
   </div>
 </template>
