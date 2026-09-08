@@ -17,7 +17,7 @@ Then open the local URL Vite prints (usually `http://localhost:5173`).
 npm run build
 ```
 
-That writes a self-contained `dist/index.html`. Copy that file onto a computer or phone and open it in the browser — no web server required. Optional: copy `dist/favicon.svg` and `dist/icon.svg` alongside it if you want the tab/notification icons.
+That writes a self-contained `docs/index.html`. Copy that file onto a computer or phone and open it in the browser — no web server required. Optional: copy `docs/favicon.svg` and `docs/icon.svg` alongside it if you want the tab/notification icons.
 
 Routes use hashes (`index.html#/history`), so navigation works from `file://`.
 
@@ -25,4 +25,4 @@ If you later host Worknote on a real origin and want install-as-an-app plus a se
 
 ## Access
 
-The dist directory is included, so we can access this from github pages.
+The docs directory is included, so we can access this from GitHub Pages.

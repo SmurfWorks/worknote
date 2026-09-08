@@ -42,6 +42,9 @@ const pwa = VitePWA({
 
 export default defineConfig({
   base: './',
+  build: {
+    outDir: 'docs',
+  },
   plugins: [vue(), tailwindcss(), portable ? viteSingleFile() : pwa],
   resolve: {
     alias: {
