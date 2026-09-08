@@ -24,19 +24,13 @@ watch(
 
 const visible = computed(() => showPrompt.value && settled.value && !onboardingOpen.value)
 
-const title = computed(() =>
-  isIos ? 'Add Worknote to your Home Screen' : 'Install Worknote on this device',
-)
+const title = computed(() => (isIos ? 'Add to Home Screen' : 'Install Worknote'))
 
-const body = computed(() => {
-  if (showHelp.value && isIos) {
-    return 'Tap the Share button, then Add to Home Screen. Open it from there next time for a full-screen app and more reliable reminders.'
-  }
-  if (showHelp.value) {
-    return 'Open the browser menu and tap Add to Home Screen or Install app. That gives you a home-screen icon and more reliable weekday reminders.'
-  }
-  return 'A home-screen icon opens it faster, and weekday reminders are more reliable from the installed app.'
-})
+const help = computed(() =>
+  isIos
+    ? 'Share, then Add to Home Screen.'
+    : 'Menu → Add to Home Screen',
+)
 
 async function onPrimary() {
   if (canInstall.value) {
@@ -48,29 +42,40 @@ async function onPrimary() {
 </script>
 
 <template>
-  <section
+  <aside
     v-if="visible"
-    class="mb-4 rounded-3xl border border-line bg-card p-4"
+    class="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-3 pt-2"
     aria-label="Install Worknote"
   >
-    <p class="font-display text-lg text-ink">{{ title }}</p>
-    <p class="mt-1 text-sm leading-6 text-muted">{{ body }}</p>
-    <div class="mt-4 flex flex-col gap-2 sm:flex-row">
+    <div
+      class="pointer-events-auto flex max-w-full items-center gap-1 rounded-full border border-line bg-card/95 py-1 pl-3 pr-1 shadow-xl backdrop-blur"
+    >
+      <p class="min-w-0 text-xs font-semibold leading-tight text-ink">
+        {{ showHelp ? help : title }}
+      </p>
       <button
         v-if="!showHelp"
         type="button"
-        class="rounded-full bg-accent px-4 py-2.5 text-sm font-bold text-on-accent"
+        class="shrink-0 rounded-full bg-accent px-2.5 py-1 text-xs font-bold text-on-accent"
         @click="onPrimary"
       >
-        {{ canInstall ? 'Add to Home Screen' : 'How to add' }}
+        {{ canInstall ? 'Add' : 'How' }}
       </button>
       <button
         type="button"
-        class="rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink"
+        class="grid size-7 shrink-0 place-items-center rounded-full text-muted hover:bg-paper"
+        :aria-label="showHelp ? 'Got it' : 'Not now'"
         @click="dismiss"
       >
-        {{ showHelp ? 'Got it' : 'Not now' }}
+        <svg viewBox="0 0 24 24" class="size-3.5" fill="none" aria-hidden="true">
+          <path
+            d="M6 6l12 12M18 6 6 18"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </svg>
       </button>
     </div>
-  </section>
+  </aside>
 </template>

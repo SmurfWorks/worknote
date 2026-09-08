@@ -14,7 +14,7 @@ const activeTab = computed(() => route.meta.tab ?? 'today')
 
 <template>
   <div
-    class="mx-auto flex h-full max-h-full max-w-lg flex-col overflow-hidden bg-paper pt-[env(safe-area-inset-top)]"
+    class="relative mx-auto flex h-full max-h-full max-w-lg flex-col overflow-hidden bg-paper pt-[env(safe-area-inset-top)]"
   >
     <header
       v-if="showBack"
@@ -38,12 +38,12 @@ const activeTab = computed(() => route.meta.tab ?? 'today')
     </header>
 
     <main class="min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-4">
-      <InstallPrompt />
       <RouterView v-slot="{ Component }">
         <component :is="Component" />
       </RouterView>
     </main>
 
+    <InstallPrompt />
     <ToastStack />
     <nav class="shrink-0 border-t border-line bg-card/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
       <DateBar v-if="showDateBar" />
