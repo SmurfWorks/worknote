@@ -1,4 +1,5 @@
 <script setup>
+import { TransitionGroup } from 'vue'
 import { useToasts } from '../composables/useToasts'
 
 const { toasts } = useToasts()
@@ -6,12 +7,11 @@ const { toasts } = useToasts()
 
 <template>
   <div
-    v-if="toasts.length"
     class="pointer-events-none absolute inset-x-0 bottom-full z-20 flex justify-center px-4 pb-2"
     aria-live="polite"
     aria-relevant="additions"
   >
-    <ul class="flex flex-col items-center gap-2">
+    <TransitionGroup tag="ul" name="toast" class="flex flex-col items-center gap-2">
       <li
         v-for="toast in toasts"
         :key="toast.id"
@@ -25,6 +25,6 @@ const { toasts } = useToasts()
       >
         {{ toast.message }}
       </li>
-    </ul>
+    </TransitionGroup>
   </div>
 </template>

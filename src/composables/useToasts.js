@@ -12,7 +12,7 @@ export function showToast(message, variant = 'ok') {
   toasts.value = [...toasts.value, { id, message, variant, at: now }]
   window.setTimeout(() => {
     toasts.value = toasts.value.filter((toast) => toast.id !== id)
-  }, 2400)
+  }, 2200)
 }
 
 export function useToasts() {

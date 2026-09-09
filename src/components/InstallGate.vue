@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useInstallPrompt } from '../composables/useInstallPrompt'
 
-const { canInstall, showInstalled, isIos, isAndroid, install } = useInstallPrompt()
+const { canInstall, showInstalled, installing, isIos, isAndroid, install } = useInstallPrompt()
 
 const how = computed(() => {
   if (isIos) {
@@ -21,9 +21,20 @@ const how = computed(() => {
 <template>
   <section
     class="mx-auto flex h-full max-h-full max-w-lg flex-col overflow-hidden bg-paper px-5 pt-[max(1.5rem,env(safe-area-inset-top))]"
-    :aria-labelledby="showInstalled ? 'install-title' : 'splash-title'"
+    :aria-labelledby="installing ? 'installing-title' : showInstalled ? 'install-title' : 'splash-title'"
   >
-    <div v-if="showInstalled" class="min-h-0 flex-1 overflow-y-auto pb-4">
+    <div v-if="installing" class="min-h-0 flex-1 overflow-y-auto pb-4">
+      <p class="text-sm font-semibold uppercase tracking-[0.22em] text-neon">Installing</p>
+      <h1 id="installing-title" class="mt-1 font-display text-4xl leading-tight text-ink">
+        Adding Worknote
+      </h1>
+      <p class="mt-3 text-base leading-7 text-muted">
+        Wait until Worknote finishes installing. This page will update when the Home Screen app is
+        ready.
+      </p>
+    </div>
+
+    <div v-else-if="showInstalled" class="min-h-0 flex-1 overflow-y-auto pb-4">
       <p class="text-sm font-semibold uppercase tracking-[0.22em] text-neon">Ready</p>
       <h1 id="install-title" class="mt-1 font-display text-4xl leading-tight text-ink">
         Worknote is installed
@@ -83,7 +94,13 @@ const how = computed(() => {
       v-else
       class="mb-[max(1.5rem,env(safe-area-inset-bottom))] text-sm leading-6 text-muted"
     >
-      {{ showInstalled ? 'You can close this tab.' : 'Add Worknote, then open it from your Home Screen.' }}
+      {{
+        installing
+          ? 'Keep this tab open until install finishes.'
+          : showInstalled
+            ? 'You can close this tab.'
+            : 'Add Worknote, then open it from your Home Screen.'
+      }}
     </p>
   </section>
 </template>

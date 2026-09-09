@@ -9,7 +9,7 @@ import { normalizeTime, reminderTimes, WEEKDAYS } from '../lib/types'
 
 const settings = ref(null)
 const MAX_TIMES = 8
-const notificationsAllowed = computed(() => false)
+const { permission, backgroundReady, requestPermission, refreshSchedule } = useReminders()
 const { show: showOnboarding } = useOnboarding()
 
 async function persist() {
