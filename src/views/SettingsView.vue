@@ -280,7 +280,7 @@ onMounted(async () => {
       <section class="rounded-3xl border border-line bg-card p-4">
         <h2 class="font-display text-xl text-ink">On this device</h2>
         <p class="mt-1 text-sm leading-6 text-muted">
-          Audio and transcripts are stored in this browser’s local database. Live captions use the
+          Notes are stored in this browser’s local database. Dictate uses the
           browser’s free speech service when it is available; you can always edit or type the note.
         </p>
         <button

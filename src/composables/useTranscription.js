@@ -9,7 +9,7 @@ function getSpeechCtor() {
   return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null
 }
 
-function joinText(...parts) {
+export function joinText(...parts) {
   return parts
     .map((part) => part.trim())
     .filter(Boolean)
@@ -96,7 +96,7 @@ export function useTranscription() {
     clearRestart()
 
     if (!Ctor) {
-      error.value = 'Live captions are not available in this browser. You can type the note instead.'
+      error.value = 'Dictation is not available in this browser. You can type the note instead.'
       return
     }
 
@@ -123,15 +123,15 @@ export function useTranscription() {
           return
         }
         error.value =
-          'Live captions could not use the microphone. Your audio is still saved — type the note if needed.'
+          'Dictation could not use the microphone. Check that Worknote is allowed to use it, or type the note.'
         return
       }
       if (event.error === 'network') {
-        error.value = 'Live captions need a network connection in this browser.'
+        error.value = 'Dictation needs a network connection.'
         return
       }
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        error.value = 'Speech recognition was blocked. You can still save the recording and type the note.'
+        error.value = 'Dictation was blocked. Allow the microphone for Worknote, or type the note.'
         shouldRun = false
       }
     }

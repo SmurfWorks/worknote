@@ -71,8 +71,6 @@ export async function saveNote(note) {
   }
   await db.put('notes', {
     date: note.date,
-    audioBlob: note.audioBlob ?? null,
-    audioMimeType: note.audioMimeType ?? null,
     transcript: note.transcript ?? '',
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
@@ -85,7 +83,7 @@ export async function deleteNote(date) {
   await db.delete('notes', date)
 }
 
-/** Dates (YYYY-MM-DD) that have a note, without loading the audio. */
+/** Dates (YYYY-MM-DD) that have a note. */
 export async function listNoteDates() {
   const db = await getDb()
   return new Set(await db.getAllKeys('notes'))
@@ -107,5 +105,5 @@ export async function listNotes() {
 
 export function noteHasContent(note) {
   if (!note) return false
-  return Boolean(note.audioBlob) || Boolean(note.transcript?.trim())
+  return Boolean(note.transcript?.trim())
 }

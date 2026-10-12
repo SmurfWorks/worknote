@@ -1,26 +1,33 @@
 <script setup>
 import { computed, nextTick, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
-import RecordPanel from '../components/RecordPanel.vue'
 import { setDayLeaveHandler, useDayDate } from '../composables/useDayDate'
 import { syncReminders } from '../composables/useReminders'
 import { showToast } from '../composables/useToasts'
+import { joinText, useTranscription } from '../composables/useTranscription'
 import { deleteNote, getNote, noteHasContent, saveNote } from '../lib/db'
 import { dateRelationLabel, formatDisplayDate } from '../lib/dates'
 import { shouldNudgeToday } from '../lib/reminders'
 
 defineOptions({ name: 'TodayView' })
 
-const { date, dateValid, isToday, recording } = useDayDate()
+const { date, dateValid, isToday, recording: dictating } = useDayDate()
+const {
+  isSupported: dictationSupported,
+  liveText,
+  error: dictationError,
+  start: startDictation,
+  stop: stopDictation,
+} = useTranscription()
+
 const note = ref(null)
 const loading = ref(true)
-const showRecorder = ref(true)
-const transcriptField = ref(null)
+const noteField = ref(null)
 const showNudge = ref(false)
-const confirmRerecord = ref(false)
 const confirmDelete = ref(false)
-const audioUrl = ref(null)
 const saveError = ref(null)
+/** The note's text when dictation started; what is heard is added after it. */
+let dictationBase = ''
 let saveTimer = null
 let hydrating = false
 let dirty = false
@@ -28,26 +35,15 @@ let dirty = false
 const heading = computed(() => (dateValid.value ? formatDisplayDate(date.value) : 'Note'))
 const eyebrow = computed(() => (dateValid.value ? dateRelationLabel(date.value) : 'Note'))
 const hasNote = computed(() => noteHasContent(note.value))
-const recordHint = computed(() =>
-  isToday.value ? 'Tap to record today’s note' : 'Tap to record this day’s note',
-)
 
-function revokeUrl() {
-  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
-  audioUrl.value = null
-}
-
-function syncAudio(current) {
-  revokeUrl()
-  if (current?.audioBlob) {
-    audioUrl.value = URL.createObjectURL(current.audioBlob)
-  }
+function blankNote() {
+  const now = new Date().toISOString()
+  return { date: date.value, transcript: '', createdAt: now, updatedAt: now }
 }
 
 async function refresh() {
   if (!dateValid.value) {
     note.value = null
-    showRecorder.value = false
     showNudge.value = false
     loading.value = false
     return
@@ -55,23 +51,24 @@ async function refresh() {
   hydrating = true
   dirty = false
   saveError.value = null
-  confirmRerecord.value = false
   confirmDelete.value = false
-  note.value = (await getNote(date.value)) ?? null
-  showRecorder.value = !note.value
+  note.value = (await getNote(date.value)) ?? blankNote()
   showNudge.value = isToday.value && (await shouldNudgeToday())
   loading.value = false
   await nextTick()
   hydrating = false
 }
 
-async function persistTranscript({ announceSave = false } = {}) {
+async function persistNote({ announceSave = false } = {}) {
   if (!note.value) return
-  const result = await saveNote({
-    ...note.value,
-    transcript: note.value.transcript,
-    updatedAt: new Date().toISOString(),
-  })
+  let result
+  try {
+    result = await saveNote({ ...note.value, updatedAt: new Date().toISOString() })
+  } catch {
+    saveError.value = 'Could not save this note on your device. Try again.'
+    return
+  }
+  saveError.value = null
   if (result === 'removed') {
     dirty = false
     showToast('Note removed', 'muted')
@@ -80,6 +77,7 @@ async function persistTranscript({ announceSave = false } = {}) {
   }
   if (result === 'saved' && announceSave && dirty) {
     dirty = false
+    showNudge.value = false
     showToast('Note saved')
     syncReminders()
   }
@@ -89,82 +87,46 @@ function queuePersist() {
   if (!note.value || hydrating) return
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
-    persistTranscript()
+    persistNote()
   }, 400)
 }
 
-async function onCaptured(payload) {
-  recording.value = false
-  saveError.value = null
-  if (!payload.blob && !payload.transcript.trim()) {
-    saveError.value = 'No words were heard, so nothing was saved. Try again, or type the note instead.'
+async function toggleDictation() {
+  if (!note.value) return
+  if (dictating.value) {
+    const heard = await stopDictation()
+    dictating.value = false
+    note.value.transcript = joinText(dictationBase, heard)
+    await persistNote({ announceSave: true })
     return
   }
-  const now = new Date().toISOString()
-  const next = {
-    date: date.value,
-    audioBlob: payload.blob,
-    audioMimeType: payload.mimeType,
-    transcript: payload.transcript,
-    createdAt: note.value?.createdAt ?? now,
-    updatedAt: now,
-  }
-  try {
-    await saveNote(next)
-    note.value = next
-    showRecorder.value = false
-    showNudge.value = false
-    dirty = false
-    showToast('Note saved')
-    syncReminders()
-  } catch {
-    saveError.value = 'Could not save this note on your device. Try again.'
-  }
-}
-
-function requestNewRecording() {
-  if (hasNote.value) {
-    confirmRerecord.value = true
-    return
-  }
-  showRecorder.value = true
-}
-
-async function writeInstead() {
-  const now = new Date().toISOString()
-  hydrating = true
-  dirty = false
-  note.value = {
-    date: date.value,
-    audioBlob: note.value?.audioBlob ?? null,
-    audioMimeType: note.value?.audioMimeType ?? null,
-    transcript: note.value?.transcript ?? '',
-    createdAt: note.value?.createdAt ?? now,
-    updatedAt: now,
-  }
-  showRecorder.value = false
-  showNudge.value = false
-  await nextTick()
-  const field = transcriptField.value
-  if (field) {
-    field.focus()
-    const end = field.value.length
-    field.setSelectionRange(end, end)
-  }
-  hydrating = false
+  dictationBase = note.value.transcript
+  dictating.value = true
+  startDictation()
 }
 
 async function remove() {
-  await deleteNote(date.value)
   confirmDelete.value = false
-  note.value = null
+  if (dictating.value) {
+    await stopDictation()
+    dictating.value = false
+  }
+  await deleteNote(date.value)
+  hydrating = true
+  note.value = blankNote()
   dirty = false
-  revokeUrl()
-  showRecorder.value = true
   showNudge.value = isToday.value && (await shouldNudgeToday())
   showToast('Note removed', 'muted')
   syncReminders()
+  await nextTick()
+  hydrating = false
 }
+
+// While dictating, the note shows what has been heard so far after the text that was already there.
+watch(liveText, (heard) => {
+  if (!dictating.value || !note.value) return
+  note.value.transcript = joinText(dictationBase, heard)
+})
 
 watch(
   () => note.value?.transcript,
@@ -173,11 +135,6 @@ watch(
     dirty = true
     queuePersist()
   },
-)
-
-watch(
-  () => note.value?.audioBlob,
-  () => syncAudio(note.value),
 )
 
 watch(
@@ -190,20 +147,27 @@ watch(
 )
 
 onActivated(() => {
-  setDayLeaveHandler(() => persistTranscript({ announceSave: true }))
-  if (recording.value) return
+  setDayLeaveHandler(() => persistNote({ announceSave: true }))
   refresh()
 })
 
-onDeactivated(() => {
+onDeactivated(async () => {
   setDayLeaveHandler(null)
-  persistTranscript({ announceSave: true })
+  if (dictating.value) {
+    const heard = await stopDictation()
+    dictating.value = false
+    if (note.value) note.value.transcript = joinText(dictationBase, heard)
+  }
+  persistNote({ announceSave: true })
 })
 
 onUnmounted(() => {
   setDayLeaveHandler(null)
   if (saveTimer) clearTimeout(saveTimer)
-  revokeUrl()
+  if (dictating.value) {
+    stopDictation()
+    dictating.value = false
+  }
 })
 </script>
 
@@ -223,54 +187,48 @@ onUnmounted(() => {
 
     <div v-else-if="loading" class="mt-10 text-sm text-muted">Loading…</div>
 
-    <div v-else class="mt-8">
-      <div v-if="showRecorder">
-        <RecordPanel
-          :hint="recordHint"
-          @captured="onCaptured"
-          @recording="recording = $event"
-        />
-        <button
-          type="button"
-          class="mt-6 w-full rounded-full bg-neon px-4 py-2.5 text-sm font-bold text-on-neon"
-          @click="writeInstead"
-        >
-          Type a note instead
-        </button>
-      </div>
-
-      <article v-else class="rounded-3xl border border-line bg-card p-4">
+    <div v-else-if="note" class="mt-6">
+      <article class="rounded-3xl border border-line bg-card p-4">
         <div class="flex items-center justify-between gap-3">
-          <h2 class="font-display text-xl text-ink">{{ isToday ? 'Today’s note' : 'This day’s note' }}</h2>
+          <label for="day-note" class="font-display text-xl text-ink">
+            What did you work on?
+          </label>
           <button
+            v-if="dictationSupported"
             type="button"
-            class="text-sm font-semibold text-accent"
-            @click="requestNewRecording"
+            class="inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition active:scale-95"
+            :class="dictating ? 'bg-neon text-on-neon' : 'bg-accent text-on-accent'"
+            :aria-pressed="dictating"
+            @click="toggleDictation"
           >
-            Record voice
+            <span v-if="dictating" class="size-2.5 animate-pulse rounded-full bg-on-neon" aria-hidden="true" />
+            <svg v-else viewBox="0 0 24 24" class="size-4" fill="none" aria-hidden="true">
+              <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" />
+              <path d="M6 11a6 6 0 0 0 12 0M12 17v4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+            {{ dictating ? 'Stop' : 'Dictate' }}
           </button>
         </div>
 
-        <audio v-if="audioUrl" class="mt-4 w-full" :src="audioUrl" controls />
-        <p v-else class="mt-4 text-sm text-muted">No audio attached — you can still keep the written note.</p>
-
-        <label class="mt-4 block text-sm font-medium text-muted" for="day-transcript">
-          Transcript
-        </label>
         <textarea
-          id="day-transcript"
-          ref="transcriptField"
-          v-if="note"
+          id="day-note"
+          ref="noteField"
           v-model="note.transcript"
-          rows="6"
-          class="mt-2 w-full resize-y rounded-2xl border border-line bg-paper px-3 py-3 text-sm leading-6 text-ink outline-none focus:border-accent"
-          placeholder="Edit the captions, or type what you worked on."
-          @blur="persistTranscript({ announceSave: true })"
+          rows="8"
+          :readonly="dictating"
+          class="mt-3 w-full resize-y rounded-2xl border border-line bg-paper px-3 py-3 text-base leading-6 text-ink outline-none focus:border-accent"
+          :class="dictating ? 'border-neon' : ''"
+          :placeholder="dictating ? 'Listening…' : 'Type what you worked on, or tap Dictate and say it.'"
+          @blur="persistNote({ announceSave: true })"
         />
+
+        <p v-if="dictating" class="mt-2 text-sm text-muted">Listening… tap Stop when you’re done.</p>
+        <p v-if="dictationError" class="mt-2 text-sm text-muted">{{ dictationError }}</p>
+
       </article>
 
       <button
-        v-if="!showRecorder"
+        v-if="hasNote"
         type="button"
         class="mt-4 w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm font-semibold text-warn"
         @click="confirmDelete = true"
@@ -282,23 +240,14 @@ onUnmounted(() => {
     <p v-if="saveError" class="mt-4 text-sm text-warn">{{ saveError }}</p>
 
     <ConfirmDialog
-      :open="confirmRerecord"
-      title="Replace this note?"
-      :message="`Recording again will replace the audio and captions saved for ${heading}.`"
-      confirm-label="Replace"
-      danger
-      @cancel="confirmRerecord = false"
-      @confirm="confirmRerecord = false; showRecorder = true"
-    />
-
-    <ConfirmDialog
       :open="confirmDelete"
       title="Delete this note?"
-      message="The audio and transcript for this day will be removed from this device."
+      message="The note for this day will be removed from this device."
       confirm-label="Delete"
       danger
       @cancel="confirmDelete = false"
       @confirm="remove"
     />
+
   </section>
 </template>

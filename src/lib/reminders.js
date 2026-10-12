@@ -8,7 +8,7 @@ import { reminderTimes } from './types'
 export const REMINDER_LOOKAHEAD_DAYS = 7
 
 const NOTIFICATION_TITLE = 'Worknote'
-const NOTIFICATION_BODY = 'Record a quick note about what you worked on today.'
+const NOTIFICATION_BODY = 'Write a quick note about what you worked on today.'
 
 function atLocalTime(day, time) {
   const [hours, minutes] = time.split(':').map(Number)

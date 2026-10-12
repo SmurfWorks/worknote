@@ -7,7 +7,6 @@ import { useDayDate } from '../composables/useDayDate'
 
 const route = useRoute()
 const { showDateBar } = useDayDate()
-const showBack = computed(() => route.name === 'note')
 const activeTab = computed(() => route.meta.tab ?? 'today')
 </script>
 
@@ -15,27 +14,6 @@ const activeTab = computed(() => route.meta.tab ?? 'today')
   <div
     class="relative mx-auto flex h-full max-h-full max-w-lg flex-col overflow-hidden bg-paper pt-[env(safe-area-inset-top)]"
   >
-    <header
-      v-if="showBack"
-      class="flex shrink-0 items-center gap-2 border-b border-line bg-paper/90 px-3 py-3 backdrop-blur"
-    >
-      <RouterLink
-        to="/history"
-        class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm font-medium text-accent hover:bg-accent-soft"
-      >
-        <svg viewBox="0 0 24 24" class="size-5" fill="none" aria-hidden="true">
-          <path
-            d="M15 6 9 12l6 6"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        History
-      </RouterLink>
-    </header>
-
     <main class="min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-4">
       <RouterView v-slot="{ Component }">
         <component :is="Component" />

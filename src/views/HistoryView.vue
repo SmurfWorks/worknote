@@ -15,7 +15,7 @@ onMounted(async () => {
 })
 
 function excerpt(text) {
-  const clean = text.trim() || 'No transcript yet.'
+  const clean = text.trim()
   return clean.length > 140 ? `${clean.slice(0, 137)}…` : clean
 }
 
@@ -25,7 +25,7 @@ function openDay() {
     router.push('/')
     return
   }
-  router.push({ name: 'note', params: { date: newDate.value } })
+  router.push({ path: '/', query: { date: newDate.value } })
 }
 </script>
 
@@ -39,7 +39,7 @@ function openDay() {
 
     <form class="mt-6 rounded-3xl border border-line bg-card p-4" @submit.prevent="openDay">
       <label class="block text-sm font-medium text-ink" for="history-date">Add a day</label>
-      <p class="mt-1 text-sm text-muted">Open a previous or upcoming date to record or type a note.</p>
+      <p class="mt-1 text-sm text-muted">Open a previous or upcoming date to write a note.</p>
       <div class="mt-3 flex gap-2">
         <input
           id="history-date"
@@ -62,13 +62,13 @@ function openDay() {
       v-else-if="notes.length === 0"
       class="mt-10 rounded-3xl border border-dashed border-line bg-card px-5 py-8 text-center text-sm leading-6 text-muted"
     >
-      Nothing here yet. Record any day and it will show up in this list.
+      Nothing here yet. Write a note for any day and it will show up in this list.
     </p>
 
     <ul v-else class="mt-6 space-y-3">
       <li v-for="note in notes" :key="note.date">
         <RouterLink
-          :to="{ name: 'note', params: { date: note.date } }"
+          :to="note.date === todayKey() ? '/' : { path: '/', query: { date: note.date } }"
           class="block rounded-3xl border border-line bg-card px-4 py-4 transition hover:border-accent"
         >
           <p class="text-sm font-semibold text-accent">{{ formatShortDate(note.date) }}</p>

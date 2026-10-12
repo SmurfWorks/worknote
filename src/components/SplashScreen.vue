@@ -49,16 +49,14 @@ onBeforeUnmount(() => lockScroll(false))
           <p class="text-sm font-bold uppercase tracking-[0.14em] text-accent">Welcome</p>
           <h1 id="splash-title" class="mt-1 font-display text-4xl leading-tight text-ink">Worknote</h1>
           <p class="mt-3 text-base leading-7 text-muted">
-            A private daily log of what you worked on. Record a short voice note, or type it if you
-            prefer.
+            A private daily log of what you worked on. Type it, or tap Dictate and say it.
           </p>
 
           <ul class="mt-8 space-y-3">
             <li class="rounded-3xl border border-line bg-card p-4">
               <p class="font-display text-lg text-ink">Capture the day</p>
               <p class="mt-1 text-sm leading-6 text-muted">
-                Tap the mic to record. Captions appear as you speak, and you can edit them afterwards.
-                Prefer typing? Use Type a note instead.
+                Write a few lines about your day. Tap Dictate to fill the note from your voice; the words appear as you speak and you can edit them afterwards. No audio is kept.
               </p>
             </li>
             <li class="rounded-3xl border border-line bg-card p-4">
@@ -71,7 +69,7 @@ onBeforeUnmount(() => lockScroll(false))
             <li class="rounded-3xl border border-line bg-card p-4">
               <p class="font-display text-lg text-ink">Stays on this device</p>
               <p class="mt-1 text-sm leading-6 text-muted">
-                Audio and transcripts live in this browser, not on a server. Optional reminders, sent by your own PWA Push server, can
+                Notes live in this browser, not on a server. Optional reminders, sent by your own PWA Push server, can
                 nudge you on weekdays.
               </p>
             </li>

@@ -16,7 +16,7 @@ const pwa = VitePWA({
   manifest: {
     name: 'Worknote',
     short_name: 'Worknote',
-    description: 'Record a quick voice note of what you worked on today.',
+    description: 'A quick daily note of what you worked on.',
     // Left out so the page's theme-color tags decide the bar colour in light and dark, as in Dosage Helper.
     theme_color: undefined,
     background_color: '#efe8dc',

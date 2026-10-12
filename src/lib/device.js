@@ -14,7 +14,3 @@ export function isIos() {
 export function isMobileDevice() {
   return isAndroid() || isIos()
 }
-
-export function shouldCapturePcm() {
-  return isAndroid() && !/Firefox/i.test(navigator.userAgent)
-}

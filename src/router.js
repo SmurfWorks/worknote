@@ -8,7 +8,8 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'today', component: TodayView, meta: { tab: 'today' } },
     { path: '/history', name: 'history', component: HistoryView, meta: { tab: 'history' } },
-    { path: '/note/:date', name: 'note', component: TodayView, meta: { tab: 'history' } },
+    // Older links to a day open it on Today, like any other date.
+    { path: '/note/:date', redirect: (to) => ({ path: '/', query: { date: to.params.date } }) },
     { path: '/settings', name: 'settings', component: SettingsView, meta: { tab: 'settings' } },
   ],
   scrollBehavior() {
