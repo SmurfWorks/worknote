@@ -1,7 +1,6 @@
 import { ref } from 'vue'
 import { getSettings, listNoteDates } from '../lib/db'
 import {
-  browserTimeZone,
   checkPushConnection,
   ensurePushDevice,
   forgetPushDevice,
@@ -115,7 +114,7 @@ async function sync() {
   const wanted = scheduledReminders(settings, await listNoteDates()).map((item) => ({ ...item, ...links }))
 
   try {
-    const deviceId = await ensurePushDevice(auth, browserTimeZone())
+    const deviceId = await ensurePushDevice(auth, settings.timezone)
     if (!deviceId) {
       showConnection(
         'ready',

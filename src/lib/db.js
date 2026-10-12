@@ -1,5 +1,6 @@
 import { openDB } from 'idb'
 import { cleanPushUrl } from './push'
+import { chosenTimezone } from './timezone'
 import { DEFAULT_SETTINGS, reminderTimes } from './types'
 
 const SETTINGS_KEY = 'settings'
@@ -27,6 +28,7 @@ function hydrateSettings(stored) {
     remindersEnabled: stored?.remindersEnabled === true,
     pushUrl: typeof stored?.pushUrl === 'string' ? cleanPushUrl(stored.pushUrl) : '',
     pushToken: typeof stored?.pushToken === 'string' ? stored.pushToken.trim() : '',
+    timezone: chosenTimezone(typeof stored?.timezone === 'string' ? stored.timezone : null),
   }
 }
 
@@ -48,6 +50,7 @@ export async function saveSettings(settings) {
       remindersEnabled: settings.remindersEnabled === true,
       pushUrl: cleanPushUrl(settings.pushUrl),
       pushToken: String(settings.pushToken ?? '').trim(),
+      timezone: chosenTimezone(settings.timezone),
     },
     SETTINGS_KEY,
   )

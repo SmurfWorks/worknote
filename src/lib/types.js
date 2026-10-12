@@ -17,6 +17,8 @@ export const DEFAULT_SETTINGS = {
   pushUrl: '',
   /** Token for Worknote on that server. */
   pushToken: '',
+  /** IANA timezone registered with the reminder server. Empty means this device's own. */
+  timezone: '',
 }
 
 export function normalizeTime(value) {

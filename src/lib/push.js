@@ -146,7 +146,9 @@ async function asJson(response, forgetOnMissing = false) {
     } catch {
       // The status is enough when the server sends no details.
     }
-    throw new Error(validationError(message))
+    const error = new Error(validationError(message))
+    error.timeDoesNotExist = /does not exist/i.test(message)
+    throw error
   }
   if (!response.ok) throw new Error(`The reminder server responded ${response.status}.`)
   if (response.status === 204) return null
@@ -183,7 +185,6 @@ export async function ensurePushDevice(auth, timezone, fetchImpl = fetch) {
 
   const current = await registration.pushManager.getSubscription()
   if (sameServer && current) return postDevice(auth, timezone, current, fetchImpl)
-  if (sameServer) return stored.id
 
   if (current) await current.unsubscribe()
   const keyResponse = await fetchImpl(`${auth.baseUrl}/api/vapid-public-key`, { headers: { Accept: 'application/json' } })
@@ -219,20 +220,28 @@ export async function replaceNotifications(auth, deviceId, wanted, fetchImpl = f
   }
 
   for (const item of wanted) {
-    await asJson(
-      await fetchImpl(`${root}/${encodeURIComponent(item.key)}`, {
-        method: 'PUT',
-        headers: authHeaders(auth, true),
-        body: JSON.stringify({
-          deliver_at: item.deliverAt,
-          title: item.title,
-          body: item.body,
-          tag: item.tag,
-          grace_minutes: REMINDER_GRACE_MINUTES,
-          ...(item.url ? { url: item.url } : {}),
-          ...(item.icon ? { icon: item.icon } : {}),
-        }),
-      }),
-    )
+    try {
+      await bookOne(root, auth, item, fetchImpl)
+    } catch (error) {
+      // A clock time skipped when the clocks go forward has nothing to deliver at.
+      if (!error?.timeDoesNotExist) throw error
+    }
   }
+}
+
+async function bookOne(root, auth, item, fetchImpl) {
+  const response = await fetchImpl(`${root}/${encodeURIComponent(item.key)}`, {
+    method: 'PUT',
+    headers: authHeaders(auth, true),
+    body: JSON.stringify({
+      deliver_at: item.deliverAt,
+      title: item.title,
+      body: item.body,
+      tag: item.tag,
+      grace_minutes: REMINDER_GRACE_MINUTES,
+      ...(item.url ? { url: item.url } : {}),
+      ...(item.icon ? { icon: item.icon } : {}),
+    }),
+  })
+  await asJson(response)
 }

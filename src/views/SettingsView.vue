@@ -6,7 +6,7 @@ import { showToast } from '../composables/useToasts'
 import { getSettings, saveSettings } from '../lib/db'
 import { isIos } from '../lib/device'
 import { cleanPushUrl, pageOrigin } from '../lib/push'
-import { sendTestNotification } from '../lib/reminders'
+import { chosenTimezone, supportedTimeZones, timezoneChoices } from '../lib/timezone'
 import { normalizeTime, reminderTimes, WEEKDAYS } from '../lib/types'
 
 const settings = ref(null)
@@ -15,6 +15,7 @@ const pushToken = ref('')
 const { permission, connection, connectionError, allowNotifications, syncReminders } = useReminders()
 const { show: showOnboarding } = useOnboarding()
 const origin = pageOrigin(location.href)
+const timezones = timezoneChoices(supportedTimeZones(), new Date())
 
 const notificationsSupported = computed(() => permission.value !== 'unsupported')
 const remindersOn = computed(
@@ -126,8 +127,10 @@ function removeTime(index) {
   persist()
 }
 
-async function testNotification() {
-  if (!(await sendTestNotification())) showToast('Could not show a notification', 'muted')
+async function changeTimezone(event) {
+  if (!settings.value) return
+  settings.value.timezone = chosenTimezone(event.target.value)
+  await persist()
 }
 
 onMounted(async () => {
@@ -147,6 +150,22 @@ onMounted(async () => {
     </p>
 
     <div v-if="settings" class="mt-6 space-y-4">
+      <section class="rounded-3xl border border-line bg-card p-4">
+        <label for="timezone" class="font-display text-xl text-ink">Timezone</label>
+        <select
+          id="timezone"
+          :value="settings.timezone"
+          class="mt-2 w-full rounded-2xl border-[1.5px] border-line bg-paper px-3 py-2.5 text-ink outline-none focus:border-accent"
+          @change="changeTimezone"
+        >
+          <option v-for="zone in timezones" :key="zone.id" :value="zone.id">{{ zone.label }}</option>
+        </select>
+        <p class="mt-2 text-sm leading-6 text-muted">
+          This is the timezone registered for this phone on your reminder server. Reminder days and
+          times follow it. It starts as the one on this device.
+        </p>
+      </section>
+
       <section class="rounded-3xl border border-line bg-card p-4">
         <h2 class="font-display text-xl text-ink">Reminders</h2>
         <label class="mt-2 flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold text-ink">
@@ -254,13 +273,6 @@ onMounted(async () => {
             @click="addTime"
           >
             + Add a time
-          </button>
-          <button
-            type="button"
-            class="mt-3 ml-2 rounded-full px-2 py-2.5 text-sm font-bold text-accent"
-            @click="testNotification"
-          >
-            Send a test notification
           </button>
         </template>
       </section>
