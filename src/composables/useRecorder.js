@@ -176,11 +176,6 @@ export function useRecorder() {
     return { blob, mimeType, durationSeconds }
   }
 
-  /** A copy of the microphone track, for live captions to listen to. The caller stops it. */
-  function cloneAudioTrack() {
-    return stream?.getAudioTracks()[0]?.clone() ?? null
-  }
-
   onUnmounted(() => {
     if (elapsedTimer) clearInterval(elapsedTimer)
     if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop()
@@ -196,6 +191,5 @@ export function useRecorder() {
     prepare,
     start,
     stop,
-    cloneAudioTrack,
   }
 }

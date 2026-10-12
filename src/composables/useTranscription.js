@@ -1,8 +1,10 @@
 import { computed, ref } from 'vue'
-import { isMobileDevice } from '../lib/device'
+import { isAndroid, isIos, isMobileDevice } from '../lib/device'
 
 /** How long to wait for the browser's last result after asking it to stop. */
 const STOP_WAIT_MS = 2000
+/** How long to wait for captions to take the microphone before the recorder opens it too. */
+const AUDIO_START_WAIT_MS = 1500
 
 function getSpeechCtor() {
   if (typeof window === 'undefined') return null
@@ -49,7 +51,6 @@ export function useTranscription() {
   const error = ref(null)
 
   let recognition = null
-  let track = null
   let shouldRun = false
   let captureRetries = 0
   let restartTimer = 0
@@ -72,20 +73,10 @@ export function useTranscription() {
   function begin() {
     if (!recognition) return
     try {
-      // Browsers that can listen to a given track use the recorder's microphone instead of opening
-      // their own, which Android cannot do while the recorder holds it. Others ignore the argument.
-      if (track) recognition.start(track)
-      else recognition.start()
+      recognition.start()
       isListening.value = true
     } catch {
-      if (!track) return
-      track = null
-      try {
-        recognition.start()
-        isListening.value = true
-      } catch {
-        // Already started, or the browser refused.
-      }
+      // Already started, or the browser refused.
     }
   }
 
@@ -97,7 +88,11 @@ export function useTranscription() {
     }, delay)
   }
 
-  function start(audioTrack = null) {
+  /**
+   * Starts listening. Resolves once captions have the microphone, or after a short wait, so the
+   * recorder can open it afterwards: Android only gives captions audio when they open it first.
+   */
+  function start() {
     const Ctor = getSpeechCtor()
     error.value = null
     committedText.value = ''
@@ -108,13 +103,14 @@ export function useTranscription() {
 
     if (!Ctor) {
       error.value = 'Live captions are not available in this browser. You can type the note instead.'
-      return
+      return Promise.resolve()
     }
 
     const mobile = isMobileDevice()
-    track = audioTrack
     recognition = new Ctor()
-    recognition.continuous = !mobile
+    // One long session where possible. On Android a restart after a pause cannot reopen the
+    // microphone while the recorder holds it, so captions would stop after the first sentence.
+    recognition.continuous = !isIos()
     recognition.interimResults = true
     recognition.maxAlternatives = 1
     recognition.lang = navigator.language || 'en-US'
@@ -126,13 +122,8 @@ export function useTranscription() {
     }
 
     recognition.onerror = (event) => {
+      audioReady()
       if (event.error === 'no-speech' || event.error === 'aborted') return
-      if (track && shouldRun) {
-        // Listening to the recorder's track did not work here; fall back to the browser's own microphone.
-        track = null
-        restartSoon(250)
-        return
-      }
       if (event.error === 'audio-capture') {
         captureRetries += 1
         if (captureRetries <= 3 && shouldRun) {
@@ -164,14 +155,25 @@ export function useTranscription() {
       finishStop?.()
     }
 
+    let audioReady = () => {}
+    const ready = new Promise((resolve) => {
+      const timer = window.setTimeout(resolve, isAndroid() ? AUDIO_START_WAIT_MS : 0)
+      audioReady = () => {
+        window.clearTimeout(timer)
+        resolve()
+      }
+    })
+    recognition.onaudiostart = () => audioReady()
+
     begin()
+    if (!isListening.value) audioReady()
+    return ready
   }
 
   function finish() {
     finishStop = null
     commitSession()
     recognition = null
-    track = null
     isListening.value = false
     return liveText.value
   }

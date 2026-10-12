@@ -1,7 +1,5 @@
 <script setup>
-import { onUnmounted } from 'vue'
 import { formatDuration } from '../lib/dates'
-import { isAndroid } from '../lib/device'
 import { useRecorder } from '../composables/useRecorder'
 import { useTranscription } from '../composables/useTranscription'
 
@@ -19,7 +17,6 @@ const {
   prepare,
   start,
   stop,
-  cloneAudioTrack,
 } = useRecorder()
 const {
   liveText,
@@ -28,19 +25,11 @@ const {
   stop: stopTranscript,
 } = useTranscription()
 
-let captionTrack = null
-
-function releaseCaptionTrack() {
-  captionTrack?.stop()
-  captionTrack = null
-}
-
 async function toggle() {
   if (isRecording.value) {
     emit('recording', false)
     // Both stop together, so the recording ends when tapped while captions wait for their last words.
     const [transcript, result] = await Promise.all([stopTranscript(), stop()])
-    releaseCaptionTrack()
     if (!result) return
     emit('captured', {
       blob: result.blob,
@@ -50,11 +39,10 @@ async function toggle() {
     return
   }
 
-  // Android cannot give the microphone to captions and the recorder at once, so the recorder opens it
-  // first and captions listen to a copy of its track. Elsewhere captions start first, inside the tap.
-  const shareMicrophone = isAndroid()
-  if (!shareMicrophone) startTranscript()
+  // Captions take the microphone first: on Android they get no audio if the recorder already has it.
+  const captionsReady = startTranscript()
   prepare()
+  await captionsReady
   try {
     await start()
   } catch {
@@ -62,14 +50,8 @@ async function toggle() {
     emit('recording', false)
     return
   }
-  if (shareMicrophone) {
-    captionTrack = cloneAudioTrack()
-    startTranscript(captionTrack)
-  }
   emit('recording', true)
 }
-
-onUnmounted(releaseCaptionTrack)
 </script>
 
 <template>
