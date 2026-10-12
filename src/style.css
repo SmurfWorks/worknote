@@ -1,10 +1,8 @@
-@import "@fontsource-variable/outfit";
-@import "@fontsource-variable/space-grotesk";
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Outfit Variable", "Outfit", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Space Grotesk Variable", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Avenir Next", "Segoe UI", system-ui, sans-serif;
   --color-paper: var(--paper);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
@@ -16,36 +14,49 @@
   --color-neon-soft: var(--neon-soft);
   --color-on-accent: var(--on-accent);
   --color-on-neon: var(--on-neon);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
 }
 
+/* Colours from Dosage Helper, so the two apps look like a pair. */
 :root {
-  --paper: #f4f1fb;
-  --ink: #16121c;
-  --muted: #6b6478;
-  --card: #ffffff;
-  --line: #eadff4;
-  --accent: #ff2ec8;
-  --accent-soft: #ffd4f3;
-  --neon: #00c853;
-  --neon-soft: #d2ffe6;
+  --paper: #efe8dc;
+  --ink: #1a2421;
+  --muted: #5c675f;
+  --card: #fffdf8;
+  --line: #e3d9c8;
+  --accent: #134e4a;
+  --accent-soft: #e5f2ef;
+  --neon: #1d6b45;
+  --neon-soft: #e5f3eb;
   --on-accent: #ffffff;
   --on-neon: #ffffff;
+  --warn: #8a3b12;
+  --warn-soft: #f8e6dc;
+  --glow-warm: #f7f1e6;
+  --glow-cool: #d7ebe4;
+  --shadow: 0 18px 50px rgba(38, 32, 22, 0.08);
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #2a2d36;
-    --ink: #eceef2;
-    --muted: #a4a9b5;
-    --card: #3b3e47;
-    --line: #52565f;
-    --accent: #ff4de8;
-    --accent-soft: #4e364c;
-    --neon: #3dff9a;
-    --neon-soft: #355046;
-    --on-accent: #ffffff;
-    --on-neon: rgba(0,0,0,0.75);
+    --paper: #151917;
+    --ink: #ece7dd;
+    --muted: #a3ada6;
+    --card: #1e2421;
+    --line: #343d39;
+    --accent: #8fd3c5;
+    --accent-soft: #1d3833;
+    --neon: #8fd6ac;
+    --neon-soft: #1b3326;
+    --on-accent: #10231f;
+    --on-neon: #10231f;
+    --warn: #f2a98a;
+    --warn-soft: #3b251e;
+    --glow-warm: #1d211c;
+    --glow-cool: #142a26;
+    --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -78,8 +89,8 @@ body {
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   background:
-    radial-gradient(900px 520px at 8% -8%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%),
-    radial-gradient(720px 440px at 108% 0%, color-mix(in srgb, var(--neon) 18%, transparent), transparent 50%),
+    radial-gradient(900px 420px at -10% -20%, var(--glow-warm) 0%, transparent 55%),
+    radial-gradient(700px 380px at 110% -10%, var(--glow-cool) 0%, transparent 50%),
     var(--paper);
 }
 
@@ -92,20 +103,13 @@ textarea {
 }
 
 .font-display {
-  letter-spacing: -0.04em;
-  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-weight: 650;
 }
 
-.glow-accent {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent),
-    0 10px 28px color-mix(in srgb, var(--accent) 42%, transparent);
-}
-
+.glow-accent,
 .glow-neon {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--neon) 50%, transparent),
-    0 10px 28px color-mix(in srgb, var(--neon) 38%, transparent);
+  box-shadow: var(--shadow);
 }
 
 .toast-enter-active {

@@ -1,120 +1,179 @@
-import { onMounted, ref } from 'vue'
-import { getSettings } from '../lib/db'
+import { ref } from 'vue'
+import { getSettings, listNoteDates } from '../lib/db'
 import {
-  getServiceWorkerRegistration,
-  maybeNotifyFromPage,
-  nextReminderAt,
-  scheduleTimestampTrigger,
-  sendTestNotification,
-} from '../lib/reminders'
+  browserTimeZone,
+  checkPushConnection,
+  ensurePushDevice,
+  forgetPushDevice,
+  pushAuth,
+  pushUrlIsReachable,
+  replaceNotifications,
+  storedPushDevice,
+  storedPushDeviceId,
+} from '../lib/push'
+import { scheduledReminders } from '../lib/reminders'
 
-let timeoutId = null
+/** How often bookings are brought in line with the clock while Worknote is open. */
+const CHECK_MS = 5 * 60 * 1000
+
+function currentPermission() {
+  return typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
+}
+
+// Shared by every caller, so Settings and the app shell see the same connection.
+const permission = ref(currentPermission())
+/** 'idle' before a server is entered, 'checking' while it is tried, 'ready' once it accepted the token. */
+const connection = ref('idle')
+const connectionError = ref('')
+
 let started = false
-const backgroundReady = ref(false)
+let lastBooked = ''
+let queue = Promise.resolve()
 
-async function registerPeriodicSync() {
-  const registration = await getServiceWorkerRegistration()
-  if (!registration?.periodicSync) return false
+function sameAuth(a, b) {
+  return a?.baseUrl === b?.baseUrl && a?.token === b?.token
+}
+
+function showConnection(state, error = '') {
+  connection.value = state
+  connectionError.value = error
+}
+
+/** null while the address or token is still missing, a message when they cannot work, otherwise ''. */
+function localServerError(settings) {
+  if (!settings.pushUrl || !settings.pushToken) return null
+  const auth = pushAuth(settings.pushUrl, settings.pushToken)
+  if (!auth) return 'Enter a reminder server address like https://example.com.'
+  if (!pushUrlIsReachable(auth.baseUrl, location.protocol)) {
+    return 'Use an https address. This page cannot reach an http reminder server.'
+  }
+  return ''
+}
+
+/** Withdraws everything booked with a server this phone no longer uses. */
+async function releaseOldServer(auth) {
+  const previous = storedPushDevice()
+  if (!previous || sameAuth(previous.auth, auth)) return
+  forgetPushDevice()
+  lastBooked = ''
   try {
-    await registration.periodicSync.register('worknote-reminder', {
-      minInterval: 15 * 60 * 1000,
-    })
-    return true
+    await replaceNotifications(previous.auth, previous.id, [])
   } catch {
-    return false
+    // That server may already be gone. This phone stops using it either way.
   }
 }
 
-async function armForegroundTimer() {
-  if (timeoutId) {
-    clearTimeout(timeoutId)
-    timeoutId = null
+async function clearBookings(auth) {
+  if (lastBooked === '[]') return
+  const deviceId = auth && storedPushDeviceId(auth)
+  if (deviceId && pushUrlIsReachable(auth.baseUrl, location.protocol)) {
+    try {
+      await replaceNotifications(auth, deviceId, [])
+    } catch {
+      // Tried again next time.
+      return
+    }
+  }
+  lastBooked = '[]'
+}
+
+async function sync() {
+  const settings = await getSettings()
+  const auth = pushAuth(settings.pushUrl, settings.pushToken)
+  permission.value = currentPermission()
+  await releaseOldServer(auth)
+
+  if (!settings.remindersEnabled || permission.value !== 'granted') {
+    await clearBookings(auth)
+    showConnection('idle')
+    return
   }
 
-  const settings = await getSettings()
-  const next = nextReminderAt(settings)
-  if (!next) return
+  const local = localServerError(settings)
+  if (local === null) {
+    showConnection('idle')
+    return
+  }
+  if (local) {
+    showConnection('idle', local)
+    return
+  }
 
-  const delay = Math.max(next.getTime() - Date.now(), 0)
-  timeoutId = setTimeout(() => {
-    maybeNotifyFromPage().then(() => armForegroundTimer())
-  }, delay)
+  if (connection.value !== 'ready') showConnection('checking')
+  const check = await checkPushConnection(auth)
+  if (!check.ok) {
+    lastBooked = ''
+    showConnection('idle', check.message)
+    return
+  }
+  showConnection('ready')
+
+  const links = {
+    url: new URL('./', document.baseURI).href,
+    icon: new URL('icon-192.png', document.baseURI).href,
+  }
+  const wanted = scheduledReminders(settings, await listNoteDates()).map((item) => ({ ...item, ...links }))
+
+  try {
+    const deviceId = await ensurePushDevice(auth, browserTimeZone())
+    if (!deviceId) {
+      showConnection(
+        'ready',
+        'This browser cannot receive reminders from a server. Open Worknote from your Home Screen and try again.',
+      )
+      return
+    }
+    const plan = JSON.stringify(wanted)
+    if (plan === lastBooked) return
+    await replaceNotifications(auth, deviceId, wanted)
+    lastBooked = plan
+  } catch (error) {
+    lastBooked = ''
+    showConnection('ready', error instanceof Error ? error.message : 'Worknote could not book reminders with that server.')
+  }
+}
+
+/** Books reminders on the server to match the settings and notes. Calls run one after another. */
+export function syncReminders() {
+  queue = queue.then(sync).catch(() => {
+    lastBooked = ''
+  })
+  return queue
 }
 
 function onVisibilityChange() {
-  maybeNotifyFromPage()
-  if (document.visibilityState === 'visible') {
-    armForegroundTimer()
-    registerPeriodicSync()
-  }
+  if (document.visibilityState === 'visible') syncReminders()
 }
 
 export function useReminders() {
-  const permission = ref(
-    typeof Notification === 'undefined' ? 'denied' : Notification.permission,
-  )
-
-  async function refreshBackgroundReady() {
-    const registration = await getServiceWorkerRegistration()
-    if (!registration?.periodicSync) {
-      backgroundReady.value = false
-      return
+  /** Asks for notification permission if needed. Resolves true when notifications are allowed. */
+  async function allowNotifications() {
+    if (typeof Notification === 'undefined') return false
+    if (Notification.permission !== 'granted') {
+      try {
+        await Notification.requestPermission()
+      } catch {
+        // Treated as not allowed below.
+      }
     }
-    try {
-      const tags = await registration.periodicSync.getTags()
-      backgroundReady.value = tags.includes('worknote-reminder')
-    } catch {
-      backgroundReady.value = false
-    }
+    permission.value = currentPermission()
+    return permission.value === 'granted'
   }
 
-  async function requestPermission() {
-    if (typeof Notification === 'undefined') {
-      permission.value = 'denied'
-      return permission.value
-    }
-    permission.value = await Notification.requestPermission()
-    if (permission.value === 'granted') {
-      await registerPeriodicSync()
-      await refreshBackgroundReady()
-      await scheduleTimestampTrigger()
-      await sendTestNotification()
-    }
-    return permission.value
-  }
-
-  async function refreshSchedule() {
-    await armForegroundTimer()
-    await scheduleTimestampTrigger()
-    await registerPeriodicSync()
-    await refreshBackgroundReady()
-  }
-
-  async function startReminderLoop() {
-    if (started) {
-      await refreshSchedule()
-      return
-    }
+  function startReminderLoop() {
+    if (started) return syncReminders()
     started = true
-    permission.value =
-      typeof Notification === 'undefined' ? 'denied' : Notification.permission
-    await refreshSchedule()
     document.addEventListener('visibilitychange', onVisibilityChange)
-    setInterval(() => {
-      maybeNotifyFromPage()
-    }, 60_000)
+    setInterval(syncReminders, CHECK_MS)
+    return syncReminders()
   }
-
-  onMounted(() => {
-    permission.value =
-      typeof Notification === 'undefined' ? 'denied' : Notification.permission
-  })
 
   return {
     permission,
-    backgroundReady,
-    requestPermission,
-    refreshSchedule,
+    connection,
+    connectionError,
+    allowNotifications,
+    syncReminders,
     startReminderLoop,
   }
 }

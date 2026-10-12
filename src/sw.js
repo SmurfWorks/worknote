@@ -1,27 +1,34 @@
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
 import { clientsClaim } from 'workbox-core'
-import { maybeNotifyFromServiceWorker } from './lib/reminders'
 
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 self.skipWaiting()
 clientsClaim()
 
+// A reminder from the PWA Push server, shown even when Worknote is closed.
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = {}
+  }
+  if (!data || typeof data !== 'object') data = {}
+  const title = typeof data.title === 'string' && data.title ? data.title : 'Worknote'
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: typeof data.body === 'string' ? data.body : '',
+      tag: typeof data.tag === 'string' ? data.tag : 'worknote-daily',
+      icon: new URL('icon-192.png', self.registration.scope).href,
+      data: { url: typeof data.url === 'string' ? data.url : self.registration.scope },
+    }),
+  )
+})
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   event.waitUntil(openApp())
-})
-
-self.addEventListener('periodicsync', (event) => {
-  if (event.tag === 'worknote-reminder') {
-    event.waitUntil(maybeNotifyFromServiceWorker(self.registration))
-  }
-})
-
-self.addEventListener('message', (event) => {
-  if (event.data === 'check-reminder') {
-    event.waitUntil(maybeNotifyFromServiceWorker(self.registration))
-  }
 })
 
 async function openApp() {
@@ -32,5 +39,5 @@ async function openApp() {
       return
     }
   }
-  await self.clients.openWindow('./')
+  await self.clients.openWindow(self.registration.scope)
 }

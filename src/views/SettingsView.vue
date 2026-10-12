@@ -1,26 +1,78 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useOnboarding } from '../composables/useOnboarding'
 import { useReminders } from '../composables/useReminders'
 import { showToast } from '../composables/useToasts'
 import { getSettings, saveSettings } from '../lib/db'
+import { isIos } from '../lib/device'
+import { cleanPushUrl, pageOrigin } from '../lib/push'
 import { sendTestNotification } from '../lib/reminders'
 import { normalizeTime, reminderTimes, WEEKDAYS } from '../lib/types'
 
 const settings = ref(null)
-const MAX_TIMES = 8
-const { permission, backgroundReady, requestPermission, refreshSchedule } = useReminders()
+const pushUrl = ref('')
+const pushToken = ref('')
+const { permission, connection, connectionError, allowNotifications, syncReminders } = useReminders()
 const { show: showOnboarding } = useOnboarding()
+const origin = pageOrigin(location.href)
 
-async function persist() {
+const notificationsSupported = computed(() => permission.value !== 'unsupported')
+const remindersOn = computed(
+  () => Boolean(settings.value?.remindersEnabled) && permission.value === 'granted',
+)
+const serverReady = computed(() => remindersOn.value && connection.value === 'ready')
+
+const statusText = computed(() => {
+  if (!notificationsSupported.value) {
+    return isIos()
+      ? 'To get reminders on an iPhone or iPad, add Worknote to your Home Screen and open it from there.'
+      : 'This browser can’t show notifications.'
+  }
+  if (permission.value === 'denied') {
+    return 'Notifications are blocked for Worknote. Allow them in your browser settings, then turn this on again.'
+  }
+  if (!remindersOn.value) {
+    return 'Get a nudge on the days and times you pick. Reminders are sent by your PWA Push server, even while Worknote is closed.'
+  }
+  if (!settings.value.pushUrl || !settings.value.pushToken) {
+    return 'Enter your reminder server address and token.'
+  }
+  if (connectionError.value && connection.value !== 'ready') return ''
+  if (connection.value === 'ready') {
+    return 'Connected. Days that already have a note are skipped.'
+  }
+  return 'Checking that reminder server…'
+})
+
+async function persist({ toast = true } = {}) {
   if (!settings.value) return
   const times = reminderTimes({ times: settings.value.times })
   settings.value.times = times
-  settings.value.time = times[0]
-  settings.value.lastReminderCheckAt = new Date().toISOString()
+  settings.value.time = times[0] ?? null
   await saveSettings(settings.value)
-  showToast('Saved')
-  await refreshSchedule()
+  if (toast) showToast('Saved')
+  await syncReminders()
+}
+
+async function toggleReminders(event) {
+  if (!settings.value) return
+  const wanted = event.target.checked
+  const allowed = wanted ? await allowNotifications() : false
+  settings.value.remindersEnabled = wanted && allowed
+  event.target.checked = settings.value.remindersEnabled
+  await persist({ toast: false })
+}
+
+async function saveServer() {
+  if (!settings.value) return
+  const url = cleanPushUrl(pushUrl.value)
+  const token = pushToken.value.trim()
+  pushUrl.value = url
+  pushToken.value = token
+  if (url === settings.value.pushUrl && token === settings.value.pushToken) return
+  settings.value.pushUrl = url
+  settings.value.pushToken = token
+  await persist({ toast: false })
 }
 
 function toggleDay(day) {
@@ -35,179 +87,182 @@ function toggleDay(day) {
   persist()
 }
 
-function updateTime(index, value) {
+function formatClock(time) {
+  const [hours, minutes] = time.split(':').map(Number)
+  const suffix = hours < 12 ? 'am' : 'pm'
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${suffix}`
+}
+
+function updateTime(index, value, input) {
   if (!settings.value) return
   const next = normalizeTime(value)
-  if (!next) return
+  if (!next) {
+    input.value = settings.value.times[index]
+    return
+  }
   const times = [...settings.value.times]
   times[index] = next
   settings.value.times = reminderTimes({ times })
-  settings.value.time = settings.value.times[0]
   persist()
 }
 
 function addTime() {
-  if (!settings.value || settings.value.times.length >= MAX_TIMES) return
+  if (!settings.value) return
   const existing = new Set(settings.value.times)
-  let hours = 12
-  let minutes = 0
-  if (settings.value.times.length) {
-    const [lastHours, lastMinutes] = settings.value.times.at(-1).split(':').map(Number)
-    minutes = lastMinutes
-    hours = (lastHours + 1) % 24
-  }
-  let candidate = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
-  while (existing.has(candidate)) {
+  let hours = (new Date().getHours() + 1) % 24
+  let candidate = `${String(hours).padStart(2, '0')}:00`
+  for (let tries = 0; existing.has(candidate) && tries < 24; tries += 1) {
     hours = (hours + 1) % 24
-    candidate = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+    candidate = `${String(hours).padStart(2, '0')}:00`
   }
+  if (existing.has(candidate)) return
   settings.value.times = reminderTimes({ times: [...settings.value.times, candidate] })
-  settings.value.time = settings.value.times[0]
   persist()
 }
 
 function removeTime(index) {
-  if (!settings.value || settings.value.times.length <= 1) return
+  if (!settings.value) return
   settings.value.times = settings.value.times.filter((_, current) => current !== index)
-  settings.value.time = settings.value.times[0]
   persist()
 }
 
-async function enableNotifications() {
-  await requestPermission()
-  await persist()
-}
-
 async function testNotification() {
-  await sendTestNotification()
-}
-
-const permissionLabel = {
-  granted: 'Allowed',
-  denied: 'Blocked in the browser',
-  default: 'Not asked yet',
+  if (!(await sendTestNotification())) showToast('Could not show a notification', 'muted')
 }
 
 onMounted(async () => {
   settings.value = await getSettings()
-  await refreshSchedule()
+  pushUrl.value = settings.value.pushUrl
+  pushToken.value = settings.value.pushToken
+  await syncReminders()
 })
 </script>
 
 <template>
   <section>
-    <p class="text-sm font-semibold uppercase tracking-[0.22em] text-neon">Preferences</p>
+    <p class="text-sm font-bold uppercase tracking-[0.14em] text-accent">Preferences</p>
     <h1 class="mt-1 font-display text-3xl text-ink">Settings</h1>
     <p class="mt-2 text-sm leading-6 text-muted">
       Choose when Worknote should nudge you. Notes never leave this device.
     </p>
 
     <div v-if="settings" class="mt-6 space-y-4">
-      <section v-if="permission === 'granted'" class="rounded-3xl border border-line bg-card p-4">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <h2 class="font-display text-xl text-ink">Reminders</h2>
-            <p class="mt-1 text-sm text-muted">A notification on the days and times you pick.</p>
-          </div>
-          <label class="inline-flex cursor-pointer items-center">
-            <span class="sr-only">Enable reminders</span>
-            <input
-              v-model="settings.remindersEnabled"
-              type="checkbox"
-              class="size-5 accent-accent"
-              @change="persist"
-            />
-          </label>
-        </div>
-
-        <p class="mt-4 text-sm font-medium text-ink">Days</p>
-        <div class="mt-2 flex flex-wrap gap-2">
-          <button
-            v-for="day in WEEKDAYS"
-            :key="day.value"
-            type="button"
-            class="rounded-full px-3 py-1.5 text-sm font-bold"
-            :class="
-              settings.days.includes(day.value)
-                ? 'bg-accent text-on-accent'
-                : 'bg-paper text-muted'
-            "
-            :aria-pressed="settings.days.includes(day.value)"
-            @click="toggleDay(day.value)"
-          >
-            {{ day.label }}
-          </button>
-        </div>
-
-        <p class="mt-4 text-sm font-medium text-ink">Times</p>
-        <ul class="mt-2 space-y-2">
-          <li v-for="(time, index) in settings.times" :key="index" class="flex gap-2">
-            <label class="sr-only" :for="`reminder-time-${index}`">Reminder time {{ index + 1 }}</label>
-            <input
-              :id="`reminder-time-${index}`"
-              :value="time"
-              type="time"
-              class="min-w-0 flex-1 rounded-2xl border border-line bg-paper px-3 py-2 text-ink"
-              @change="updateTime(index, $event.target.value)"
-            />
-            <button
-              type="button"
-              class="rounded-full border border-line px-3 py-2 text-sm font-semibold text-ink disabled:opacity-40"
-              :disabled="settings.times.length <= 1"
-              @click="removeTime(index)"
-            >
-              Remove
-            </button>
-          </li>
-        </ul>
-        <button
-          v-if="settings.times.length < MAX_TIMES"
-          type="button"
-          class="mt-3 rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink"
-          @click="addTime"
-        >
-          Add a time
-        </button>
-      </section>
-
       <section class="rounded-3xl border border-line bg-card p-4">
-        <h2 class="font-display text-xl text-ink">Notifications</h2>
-        <p class="mt-1 text-sm leading-6 text-muted">
-          <template v-if="permission !== 'granted'">
-            Enable notifications so Worknote can create reminder notifications. You can pick days
-            and times after that.
-          </template>
-          <template v-else>
-            Status: {{ permissionLabel[permission] }}. Android needs Worknote installed on the home
-            screen, then Allow notifications. The banner may not pop while the app is open — check
-            the notification shade. iPhone can still miss scheduled web notifications unless the app
-            is opened that day.
-          </template>
-        </p>
-        <p v-if="permission === 'denied'" class="mt-2 text-sm leading-6 text-muted">
-          Notifications are blocked in this browser. Allow them in the site settings, then return
-          here to set reminders.
-        </p>
-        <p v-else-if="permission === 'granted'" class="mt-2 text-sm leading-6 text-muted">
-          Background reminders:
-          {{ backgroundReady ? 'on for this installed app' : 'only while Worknote is open' }}.
-        </p>
-        <button
-          v-if="permission !== 'granted'"
-          type="button"
-          class="mt-4 rounded-full bg-accent px-4 py-2.5 text-sm font-bold text-on-accent"
-          @click="enableNotifications"
+        <h2 class="font-display text-xl text-ink">Reminders</h2>
+        <label class="mt-2 flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold text-ink">
+          <input
+            type="checkbox"
+            class="size-[1.15rem] accent-accent"
+            :checked="remindersOn"
+            :disabled="!notificationsSupported"
+            @change="toggleReminders"
+          />
+          Send reminders
+        </label>
+        <p v-if="statusText" class="mt-1 text-sm leading-6 text-muted">{{ statusText }}</p>
+
+        <div
+          v-if="remindersOn"
+          class="mt-4 grid gap-3 rounded-2xl border-[1.5px] bg-paper p-3"
+          :class="connectionError ? 'border-warn' : 'border-line'"
         >
-          Allow notifications
-        </button>
-        <button
-          v-else
-          type="button"
-          class="mt-4 rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink"
-          @click="testNotification"
-        >
-          Send a test notification
-        </button>
+          <p class="text-sm leading-6 text-muted select-text">
+            This app’s origin is <strong class="break-all font-bold text-ink">{{ origin }}</strong>.
+            Register that origin on your reminder server.
+          </p>
+          <div>
+            <label for="push-url" class="text-xs font-semibold text-muted">Reminder server address</label>
+            <input
+              id="push-url"
+              v-model="pushUrl"
+              type="text"
+              inputmode="url"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="https://example.com"
+              class="mt-1 w-full rounded-2xl border-[1.5px] border-line bg-card px-3 py-2 text-ink outline-none focus:border-accent"
+              :aria-invalid="connectionError ? 'true' : 'false'"
+              @change="saveServer"
+            />
+          </div>
+          <div>
+            <label for="push-token" class="text-xs font-semibold text-muted">Reminder server token</label>
+            <input
+              id="push-token"
+              v-model="pushToken"
+              type="text"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Token from your PWA Push app"
+              class="mt-1 w-full rounded-2xl border-[1.5px] border-line bg-card px-3 py-2 text-ink outline-none focus:border-accent"
+              :aria-invalid="connectionError ? 'true' : 'false'"
+              @change="saveServer"
+            />
+          </div>
+          <p v-if="connectionError" class="text-sm font-semibold text-warn" role="alert">
+            {{ connectionError }}
+          </p>
+        </div>
+
+        <template v-if="serverReady">
+          <p class="mt-4 text-sm font-semibold text-ink">Days</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button
+              v-for="day in WEEKDAYS"
+              :key="day.value"
+              type="button"
+              class="rounded-full px-3 py-1.5 text-sm font-bold"
+              :class="
+                settings.days.includes(day.value)
+                  ? 'bg-accent text-on-accent'
+                  : 'bg-paper text-muted'
+              "
+              :aria-pressed="settings.days.includes(day.value)"
+              @click="toggleDay(day.value)"
+            >
+              {{ day.label }}
+            </button>
+          </div>
+
+          <p id="reminder-times-label" class="mt-4 text-sm font-semibold text-ink">
+            Remind me at these times if I haven’t written a note
+          </p>
+          <ul class="mt-2 space-y-2" aria-labelledby="reminder-times-label">
+            <li v-for="(time, index) in settings.times" :key="time" class="flex items-center gap-2">
+              <input
+                :value="time"
+                type="time"
+                class="min-w-0 flex-1 rounded-2xl border-[1.5px] border-line bg-paper px-3 py-2 text-ink outline-none focus:border-accent"
+                aria-label="Reminder time"
+                @change="updateTime(index, $event.target.value, $event.target)"
+              />
+              <button
+                type="button"
+                class="flex size-11 shrink-0 items-center justify-center rounded-full text-2xl leading-none text-muted"
+                :aria-label="`Remove the ${formatClock(time)} reminder`"
+                @click="removeTime(index)"
+              >
+                ×
+              </button>
+            </li>
+          </ul>
+          <button
+            type="button"
+            class="mt-3 rounded-full bg-accent-soft px-4 py-2.5 text-sm font-bold text-accent"
+            @click="addTime"
+          >
+            + Add a time
+          </button>
+          <button
+            type="button"
+            class="mt-3 ml-2 rounded-full px-2 py-2.5 text-sm font-bold text-accent"
+            @click="testNotification"
+          >
+            Send a test notification
+          </button>
+        </template>
       </section>
 
       <section class="rounded-3xl border border-line bg-card p-4">

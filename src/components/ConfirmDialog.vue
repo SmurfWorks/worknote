@@ -36,7 +36,7 @@ const emit = defineEmits(['cancel', 'confirm'])
           <button
             type="button"
             class="flex-1 rounded-full px-4 py-2.5 text-sm font-bold"
-            :class="danger ? 'bg-red-700 text-white' : 'bg-accent text-on-accent'"
+            :class="danger ? 'bg-warn-soft text-warn' : 'bg-accent text-on-accent'"
             @click="emit('confirm')"
           >
             {{ confirmLabel }}

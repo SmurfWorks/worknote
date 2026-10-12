@@ -46,7 +46,7 @@ onBeforeUnmount(() => lockScroll(false))
         class="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col px-5 pt-[max(1.5rem,env(safe-area-inset-top))]"
       >
         <div class="min-h-0 flex-1 overflow-y-auto pb-4">
-          <p class="text-sm font-semibold uppercase tracking-[0.22em] text-neon">Welcome</p>
+          <p class="text-sm font-bold uppercase tracking-[0.14em] text-accent">Welcome</p>
           <h1 id="splash-title" class="mt-1 font-display text-4xl leading-tight text-ink">Worknote</h1>
           <p class="mt-3 text-base leading-7 text-muted">
             A private daily log of what you worked on. Record a short voice note, or type it if you
@@ -71,7 +71,7 @@ onBeforeUnmount(() => lockScroll(false))
             <li class="rounded-3xl border border-line bg-card p-4">
               <p class="font-display text-lg text-ink">Stays on this device</p>
               <p class="mt-1 text-sm leading-6 text-muted">
-                Audio and transcripts live in this browser, not on a server. Optional reminders can
+                Audio and transcripts live in this browser, not on a server. Optional reminders, sent by your own PWA Push server, can
                 nudge you on weekdays.
               </p>
             </li>

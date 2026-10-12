@@ -1,27 +1,66 @@
 import { computed, ref } from 'vue'
 import { isMobileDevice } from '../lib/device'
 
+/** How long to wait for the browser's last result after asking it to stop. */
+const STOP_WAIT_MS = 2000
+
 function getSpeechCtor() {
   if (typeof window === 'undefined') return null
   return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null
 }
 
+function joinText(...parts) {
+  return parts
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(' ')
+}
+
+/**
+ * The text of one recognition session, rebuilt from every result each time. Rebuilding avoids
+ * relying on `resultIndex`, which some browsers report inconsistently. Mobile browsers can repeat
+ * the whole utterance so far in each new result, so there a result that extends or repeats the
+ * text already gathered replaces it rather than being added again.
+ */
+export function sessionTranscript(results, collapseRepeats = false) {
+  let text = ''
+  for (let i = 0; i < results.length; i += 1) {
+    const chunk = (results[i]?.[0]?.transcript ?? '').trim()
+    if (!chunk) continue
+    if (!collapseRepeats) {
+      text = joinText(text, chunk)
+      continue
+    }
+    const lowerText = text.toLowerCase()
+    const lowerChunk = chunk.toLowerCase()
+    if (lowerChunk.startsWith(lowerText)) text = chunk
+    else if (!lowerText.endsWith(lowerChunk)) text = joinText(text, chunk)
+  }
+  return text
+}
+
 export function useTranscription() {
   const isSupported = computed(() => Boolean(getSpeechCtor()))
   const isListening = ref(false)
-  const finalText = ref('')
-  const interimText = ref('')
+  /** Text from sessions that have ended. The browser ends a session after a pause, and it is restarted. */
+  const committedText = ref('')
+  /** Text from the current session, final and interim together. */
+  const sessionText = ref('')
   const error = ref(null)
 
   let recognition = null
+  let track = null
   let shouldRun = false
   let captureRetries = 0
   let restartTimer = 0
+  let finishStop = null
 
-  const liveText = computed(() => {
-    const parts = [finalText.value.trim(), interimText.value.trim()].filter(Boolean)
-    return parts.join(' ')
-  })
+  const liveText = computed(() => joinText(committedText.value, sessionText.value))
+
+  function commitSession() {
+    committedText.value = joinText(committedText.value, sessionText.value)
+    sessionText.value = ''
+  }
 
   function clearRestart() {
     if (restartTimer) {
@@ -30,26 +69,41 @@ export function useTranscription() {
     }
   }
 
-  function restartSoon(delay = 60) {
-    clearRestart()
-    restartTimer = window.setTimeout(() => {
-      restartTimer = 0
-      if (!shouldRun || !recognition) return
+  function begin() {
+    if (!recognition) return
+    try {
+      // Browsers that can listen to a given track use the recorder's microphone instead of opening
+      // their own, which Android cannot do while the recorder holds it. Others ignore the argument.
+      if (track) recognition.start(track)
+      else recognition.start()
+      isListening.value = true
+    } catch {
+      if (!track) return
+      track = null
       try {
         recognition.start()
         isListening.value = true
       } catch {
-        // Already started, or the browser refused a restart.
+        // Already started, or the browser refused.
       }
+    }
+  }
+
+  function restartSoon(delay = 60) {
+    clearRestart()
+    restartTimer = window.setTimeout(() => {
+      restartTimer = 0
+      if (shouldRun) begin()
     }, delay)
   }
 
-  function start() {
+  function start(audioTrack = null) {
     const Ctor = getSpeechCtor()
     error.value = null
-    finalText.value = ''
-    interimText.value = ''
+    committedText.value = ''
+    sessionText.value = ''
     captureRetries = 0
+    finishStop = null
     clearRestart()
 
     if (!Ctor) {
@@ -58,6 +112,7 @@ export function useTranscription() {
     }
 
     const mobile = isMobileDevice()
+    track = audioTrack
     recognition = new Ctor()
     recognition.continuous = !mobile
     recognition.interimResults = true
@@ -67,40 +122,17 @@ export function useTranscription() {
 
     recognition.onresult = (event) => {
       captureRetries = 0
-      if (mobile) {
-        let interim = ''
-        let utterance = ''
-        for (let i = event.resultIndex; i < event.results.length; i += 1) {
-          const result = event.results[i]
-          const chunk = (result?.[0]?.transcript ?? '').trim()
-          if (!chunk) continue
-          if (result.isFinal) utterance = chunk
-          else interim += `${chunk} `
-        }
-        if (utterance && !finalText.value.endsWith(utterance)) {
-          finalText.value = `${finalText.value} ${utterance}`.trim()
-        }
-        interimText.value = interim.trim()
-        return
-      }
-
-      let interim = ''
-      let finals = finalText.value
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const result = event.results[i]
-        const chunk = result?.[0]?.transcript ?? ''
-        if (result?.isFinal) {
-          finals = `${finals} ${chunk}`.trim()
-        } else {
-          interim += chunk
-        }
-      }
-      finalText.value = finals
-      interimText.value = interim.trim()
+      sessionText.value = sessionTranscript(event.results, mobile)
     }
 
     recognition.onerror = (event) => {
       if (event.error === 'no-speech' || event.error === 'aborted') return
+      if (track && shouldRun) {
+        // Listening to the recorder's track did not work here; fall back to the browser's own microphone.
+        track = null
+        restartSoon(250)
+        return
+      }
       if (event.error === 'audio-capture') {
         captureRetries += 1
         if (captureRetries <= 3 && shouldRun) {
@@ -123,30 +155,44 @@ export function useTranscription() {
 
     recognition.onend = () => {
       isListening.value = false
-      if (shouldRun) restartSoon(mobile ? 80 : 0)
+      // Words still marked interim when a session ends are kept; the browser will not finalise them now.
+      commitSession()
+      if (shouldRun) {
+        restartSoon(mobile ? 80 : 0)
+        return
+      }
+      finishStop?.()
     }
 
-    try {
-      recognition.start()
-      isListening.value = true
-    } catch {
-      error.value = 'Could not start live captions. You can type the note after recording.'
-    }
+    begin()
   }
 
+  function finish() {
+    finishStop = null
+    commitSession()
+    recognition = null
+    track = null
+    isListening.value = false
+    return liveText.value
+  }
+
+  /** Stops listening and resolves with the transcript, once the browser has sent its last result. */
   function stop() {
     shouldRun = false
     clearRestart()
-    try {
-      recognition?.stop()
-    } catch {
-      recognition?.abort()
-    }
-    recognition = null
-    isListening.value = false
-    const text = liveText.value.trim()
-    interimText.value = ''
-    return text
+    if (!recognition || !isListening.value) return Promise.resolve(finish())
+    return new Promise((resolve) => {
+      const timer = window.setTimeout(() => finishStop?.(), STOP_WAIT_MS)
+      finishStop = () => {
+        window.clearTimeout(timer)
+        resolve(finish())
+      }
+      try {
+        recognition.stop()
+      } catch {
+        recognition.abort()
+      }
+    })
   }
 
   return {

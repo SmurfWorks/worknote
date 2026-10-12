@@ -3,6 +3,7 @@ import { computed, nextTick, onActivated, onDeactivated, onUnmounted, ref, watch
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import RecordPanel from '../components/RecordPanel.vue'
 import { setDayLeaveHandler, useDayDate } from '../composables/useDayDate'
+import { syncReminders } from '../composables/useReminders'
 import { showToast } from '../composables/useToasts'
 import { deleteNote, getNote, noteHasContent, saveNote } from '../lib/db'
 import { dateRelationLabel, formatDisplayDate } from '../lib/dates'
@@ -74,11 +75,13 @@ async function persistTranscript({ announceSave = false } = {}) {
   if (result === 'removed') {
     dirty = false
     showToast('Note removed', 'muted')
+    syncReminders()
     return
   }
   if (result === 'saved' && announceSave && dirty) {
     dirty = false
     showToast('Note saved')
+    syncReminders()
   }
 }
 
@@ -109,6 +112,7 @@ async function onCaptured(payload) {
     showNudge.value = false
     dirty = false
     showToast('Note saved')
+    syncReminders()
   } catch {
     saveError.value = 'Could not save this note on your device. Try again.'
   }
@@ -155,6 +159,7 @@ async function remove() {
   showRecorder.value = true
   showNudge.value = isToday.value && (await shouldNudgeToday())
   showToast('Note removed', 'muted')
+  syncReminders()
 }
 
 watch(
@@ -200,7 +205,7 @@ onUnmounted(() => {
 
 <template>
   <section>
-    <p class="text-sm font-semibold uppercase tracking-[0.22em] text-neon">{{ eyebrow }}</p>
+    <p class="text-sm font-bold uppercase tracking-[0.14em] text-accent">{{ eyebrow }}</p>
     <h1 class="mt-1 font-display text-3xl leading-tight text-ink">{{ heading }}</h1>
 
     <div
@@ -263,14 +268,14 @@ onUnmounted(() => {
       <button
         v-if="!showRecorder"
         type="button"
-        class="mt-4 w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm font-semibold text-red-700"
+        class="mt-4 w-full rounded-full border border-line bg-card px-4 py-2.5 text-sm font-semibold text-warn"
         @click="confirmDelete = true"
       >
         Delete this note
       </button>
     </div>
 
-    <p v-if="saveError" class="mt-4 text-sm text-red-700">{{ saveError }}</p>
+    <p v-if="saveError" class="mt-4 text-sm text-warn">{{ saveError }}</p>
 
     <ConfirmDialog
       :open="confirmRerecord"

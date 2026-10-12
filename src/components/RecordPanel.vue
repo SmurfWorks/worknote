@@ -1,5 +1,7 @@
 <script setup>
+import { onUnmounted } from 'vue'
 import { formatDuration } from '../lib/dates'
+import { isAndroid } from '../lib/device'
 import { useRecorder } from '../composables/useRecorder'
 import { useTranscription } from '../composables/useTranscription'
 
@@ -9,8 +11,16 @@ defineProps({
 
 const emit = defineEmits(['captured', 'recording'])
 
-const { isRecording, elapsedSeconds, error: recordError, levels, prepare, start, stop } =
-  useRecorder()
+const {
+  isRecording,
+  elapsedSeconds,
+  error: recordError,
+  levels,
+  prepare,
+  start,
+  stop,
+  cloneAudioTrack,
+} = useRecorder()
 const {
   liveText,
   error: transcriptError,
@@ -18,11 +28,19 @@ const {
   stop: stopTranscript,
 } = useTranscription()
 
+let captionTrack = null
+
+function releaseCaptionTrack() {
+  captionTrack?.stop()
+  captionTrack = null
+}
+
 async function toggle() {
   if (isRecording.value) {
     emit('recording', false)
-    const transcript = stopTranscript()
-    const result = await stop()
+    // Both stop together, so the recording ends when tapped while captions wait for their last words.
+    const [transcript, result] = await Promise.all([stopTranscript(), stop()])
+    releaseCaptionTrack()
     if (!result) return
     emit('captured', {
       blob: result.blob,
@@ -32,17 +50,26 @@ async function toggle() {
     return
   }
 
-  startTranscript()
+  // Android cannot give the microphone to captions and the recorder at once, so the recorder opens it
+  // first and captions listen to a copy of its track. Elsewhere captions start first, inside the tap.
+  const shareMicrophone = isAndroid()
+  if (!shareMicrophone) startTranscript()
   prepare()
   try {
     await start()
   } catch {
-    stopTranscript()
+    await stopTranscript()
     emit('recording', false)
     return
   }
+  if (shareMicrophone) {
+    captionTrack = cloneAudioTrack()
+    startTranscript(captionTrack)
+  }
   emit('recording', true)
 }
+
+onUnmounted(releaseCaptionTrack)
 </script>
 
 <template>
@@ -72,7 +99,7 @@ async function toggle() {
       :aria-label="isRecording ? 'Stop recording' : 'Start recording'"
       @click="toggle"
     >
-      <span v-if="isRecording" class="size-8 rounded-md bg-on-accent" />
+      <span v-if="isRecording" class="size-8 rounded-md bg-on-neon" />
       <svg v-else viewBox="0 0 24 24" class="size-10" fill="none" aria-hidden="true">
         <rect x="9" y="4" width="6" height="10" rx="3" fill="currentColor" />
         <path
@@ -93,7 +120,7 @@ async function toggle() {
       {{ liveText || 'Captions will appear here.' }}
     </p>
 
-    <p v-if="recordError" class="mt-3 text-center text-sm text-red-700">{{ recordError }}</p>
+    <p v-if="recordError" class="mt-3 text-center text-sm text-warn">{{ recordError }}</p>
     <p v-else-if="transcriptError" class="mt-3 text-center text-sm text-muted">
       {{ transcriptError }}
     </p>

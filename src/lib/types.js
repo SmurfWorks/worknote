@@ -12,10 +12,11 @@ export const DEFAULT_SETTINGS = {
   days: [1, 2, 3, 4, 5],
   times: ['17:00'],
   time: '17:00',
-  remindersEnabled: true,
-  lastNotifiedDate: null,
-  lastNotifiedSlot: null,
-  lastReminderCheckAt: null,
+  remindersEnabled: false,
+  /** Address of the PWA Push reminder server, without a trailing slash. */
+  pushUrl: '',
+  /** Token for Worknote on that server. */
+  pushToken: '',
 }
 
 export function normalizeTime(value) {
@@ -33,7 +34,5 @@ export function reminderTimes(settings) {
     : settings?.time
       ? [settings.time]
       : []
-  const unique = [...new Set(values.map(normalizeTime).filter(Boolean))]
-  unique.sort()
-  return unique.length ? unique : [...DEFAULT_SETTINGS.times]
+  return [...new Set(values.map(normalizeTime).filter(Boolean))].sort()
 }

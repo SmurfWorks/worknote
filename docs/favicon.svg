@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#2a2d36"/>
-  <rect x="6" y="8" width="20" height="16" rx="3" fill="#3b3e47" stroke="#ff4de8" stroke-width="1.2"/>
-  <rect x="14" y="11" width="4" height="6" rx="2" fill="#3dff9a"/>
-  <path d="M11 17.5c0 2.8 2.2 5 5 5s5-2.2 5-5" fill="none" stroke="#ff4de8" stroke-width="1.6" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Worknote">
+  <rect width="512" height="512" rx="112" fill="#000"/>
+  <g transform="translate(-16 -16)">
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="216" cy="216" r="132" stroke-width="28"/>
+    <path d="M216 136v80l52 36" stroke-width="26"/>
+  </g>
+  <circle cx="356" cy="356" r="118" fill="#000"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="356" cy="356" r="96" stroke-width="20"/>
+    <path d="M356 290v132" stroke-width="18"/>
+    <path d="M388 322c-7-12-19-18-34-18-20 0-34 10-34 26 0 34 70 18 70 52 0 16-15 26-36 26-16 0-30-6-38-18" stroke-width="20"/>
+  </g>
+  </g>
 </svg>

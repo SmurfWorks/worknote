@@ -1,5 +1,6 @@
 import { openDB } from 'idb'
-import { DEFAULT_SETTINGS, normalizeTime, reminderTimes } from './types'
+import { cleanPushUrl } from './push'
+import { DEFAULT_SETTINGS, reminderTimes } from './types'
 
 const SETTINGS_KEY = 'settings'
 
@@ -17,20 +18,15 @@ function getDb() {
 }
 
 function hydrateSettings(stored) {
-  const times = reminderTimes(stored ?? {})
-  const lastNotifiedDate = stored?.lastNotifiedDate ?? null
-  const lastNotifiedSlot =
-    stored?.lastNotifiedSlot ??
-    (lastNotifiedDate && stored?.time ? `${lastNotifiedDate}T${normalizeTime(stored.time) ?? stored.time}` : null)
+  const times = stored ? reminderTimes(stored) : [...DEFAULT_SETTINGS.times]
   return {
     ...DEFAULT_SETTINGS,
-    ...stored,
     days: stored?.days?.length ? [...stored.days] : [...DEFAULT_SETTINGS.days],
     times,
-    time: times[0],
-    lastNotifiedDate,
-    lastNotifiedSlot,
-    lastReminderCheckAt: stored?.lastReminderCheckAt ?? null,
+    time: times[0] ?? null,
+    remindersEnabled: stored?.remindersEnabled === true,
+    pushUrl: typeof stored?.pushUrl === 'string' ? cleanPushUrl(stored.pushUrl) : '',
+    pushToken: typeof stored?.pushToken === 'string' ? stored.pushToken.trim() : '',
   }
 }
 
@@ -48,11 +44,10 @@ export async function saveSettings(settings) {
     {
       days: [...settings.days],
       times,
-      time: times[0],
-      remindersEnabled: settings.remindersEnabled,
-      lastNotifiedDate: settings.lastNotifiedDate ?? null,
-      lastNotifiedSlot: settings.lastNotifiedSlot ?? null,
-      lastReminderCheckAt: settings.lastReminderCheckAt ?? null,
+      time: times[0] ?? null,
+      remindersEnabled: settings.remindersEnabled === true,
+      pushUrl: cleanPushUrl(settings.pushUrl),
+      pushToken: String(settings.pushToken ?? '').trim(),
     },
     SETTINGS_KEY,
   )
@@ -85,6 +80,12 @@ export async function saveNote(note) {
 export async function deleteNote(date) {
   const db = await getDb()
   await db.delete('notes', date)
+}
+
+/** Dates (YYYY-MM-DD) that have a note, without loading the audio. */
+export async function listNoteDates() {
+  const db = await getDb()
+  return new Set(await db.getAllKeys('notes'))
 }
 
 export async function listNotes() {
