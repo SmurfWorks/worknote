@@ -42,7 +42,7 @@ const activeTab = computed(() => route.meta.tab ?? 'today')
       </RouterView>
     </main>
 
-    <nav class="relative z-10 shrink-0 overflow-visible border-t border-line bg-card/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+    <nav class="relative z-10 shrink-0 overflow-visible border-t border-line bg-card/90 backdrop-blur">
       <ToastStack />
       <DateBar v-if="showDateBar" />
       <ul class="grid grid-cols-3">
@@ -95,6 +95,8 @@ const activeTab = computed(() => route.meta.tab ?? 'today')
           </RouterLink>
         </li>
       </ul>
+      <!-- The strip under the tabs, beside the home indicator, is always white. -->
+      <div class="h-[env(safe-area-inset-bottom)] bg-white" aria-hidden="true" />
     </nav>
   </div>
 </template>

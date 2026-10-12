@@ -17,10 +17,10 @@ const pwa = VitePWA({
     name: 'Worknote',
     short_name: 'Worknote',
     description: 'Record a quick voice note of what you worked on today.',
-    theme_color: '#000000',
-    background_color: '#000000',
+    // Left out so the page's theme-color tags decide the bar colour in light and dark, as in Dosage Helper.
+    theme_color: undefined,
+    background_color: '#efe8dc',
     display: 'standalone',
-    display_override: ['fullscreen', 'standalone'],
     orientation: 'portrait',
     start_url: './',
     scope: './',
