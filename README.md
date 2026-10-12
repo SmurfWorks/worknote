@@ -2,6 +2,10 @@
 
 A Vue 3 app for a daily note of what you worked on. Add as many entries a day as you like: type each one, or tap **Dictate** to fill it from your voice with the browser’s built-in speech recognition. No audio is saved; notes are kept in this device’s IndexedDB.
 
+## Backup and delete
+
+In Settings, **Backup to file** saves every note as a JSON file, and **Restore from file** replaces the notes on this device with a backup, after saying how many days and entries it holds. Reminder settings, the timezone and the reminder server stay with each device, so they are not in backups. **Delete all data** removes every note and setting from this device, withdraws the reminders booked for it, and shows the welcome again.
+
 ## Run it while developing
 
 ```bash

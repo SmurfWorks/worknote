@@ -152,6 +152,36 @@ export async function listNotes() {
   return kept.sort((a, b) => b.date.localeCompare(a.date))
 }
 
+/** Replaces every note on this device with `notes`, for Restore from file. */
+export function replaceAllNotes(notes) {
+  const write = noteWrites.then(async () => {
+    const db = await getDb()
+    const tx = db.transaction('notes', 'readwrite')
+    await tx.store.clear()
+    for (const note of notes) {
+      // Plain copies: IndexedDB cannot store Vue's reactive proxies.
+      const entries = note.entries.map(({ id, text, createdAt, updatedAt }) => ({ id, text, createdAt, updatedAt }))
+      await tx.store.put({ date: note.date, entries })
+    }
+    await tx.done
+  })
+  noteWrites = write.catch(() => {})
+  return write
+}
+
+/** Removes every note and resets the settings, for Delete all data. */
+export function deleteAllData() {
+  const write = noteWrites.then(async () => {
+    const db = await getDb()
+    const tx = db.transaction(['notes', 'meta'], 'readwrite')
+    await tx.objectStore('notes').clear()
+    await tx.objectStore('meta').clear()
+    await tx.done
+  })
+  noteWrites = write.catch(() => {})
+  return write
+}
+
 export function noteHasContent(note) {
   if (!note) return false
   return (note.entries ?? []).some((entry) => entry.text.trim())

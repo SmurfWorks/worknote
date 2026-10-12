@@ -1,9 +1,11 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { useOnboarding } from '../composables/useOnboarding'
 import { useReminders } from '../composables/useReminders'
 import { showToast } from '../composables/useToasts'
-import { getSettings, saveSettings } from '../lib/db'
+import { backupFilename, createBackup, parseBackup } from '../lib/backup'
+import { deleteAllData, getSettings, listNotes, replaceAllNotes, saveSettings } from '../lib/db'
 import { isIos } from '../lib/device'
 import { cleanPushUrl, pageOrigin } from '../lib/push'
 import { chosenTimezone, supportedTimeZones, timezoneChoices } from '../lib/timezone'
@@ -13,7 +15,7 @@ const settings = ref(null)
 const pushUrl = ref('')
 const pushToken = ref('')
 const { permission, connection, connectionError, allowNotifications, syncReminders } = useReminders()
-const { show: showOnboarding } = useOnboarding()
+const { show: showOnboarding, reset: resetOnboarding } = useOnboarding()
 const origin = pageOrigin(location.href)
 const timezones = timezoneChoices(supportedTimeZones(), new Date())
 
@@ -131,6 +133,85 @@ async function changeTimezone(event) {
   if (!settings.value) return
   settings.value.timezone = chosenTimezone(event.target.value)
   await persist()
+}
+
+const restoreFile = ref(null)
+/** A backup read from a file, waiting on the restore confirmation. */
+const pendingRestore = ref(null)
+const confirmDeleteAll = ref(false)
+
+function plural(count, one, many) {
+  return count === 1 ? `1 ${one}` : `${count} ${many}`
+}
+
+async function backupToFile() {
+  const when = new Date()
+  const backup = createBackup(await listNotes(), when)
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = backupFilename(when)
+  document.body.append(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  showToast('Saved a backup file')
+}
+
+function chooseRestoreFile() {
+  if (!restoreFile.value) return
+  restoreFile.value.value = ''
+  restoreFile.value.click()
+}
+
+async function readRestoreFile(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  let parsed
+  try {
+    parsed = parseBackup(JSON.parse(await file.text()))
+  } catch {
+    parsed = { ok: false, message: 'That file is not a Worknote backup.' }
+  }
+  if (!parsed.ok) {
+    showToast(parsed.message, 'muted')
+    return
+  }
+  pendingRestore.value = parsed
+}
+
+const restoreMessage = computed(() => {
+  const notes = pendingRestore.value?.notes ?? []
+  const entries = notes.reduce((total, note) => total + note.entries.length, 0)
+  return `This replaces every note on this device with the backup’s ${plural(notes.length, 'day', 'days')} and ${plural(entries, 'entry', 'entries')}.`
+})
+
+async function confirmRestore() {
+  const backup = pendingRestore.value
+  pendingRestore.value = null
+  if (!backup) return
+  try {
+    await replaceAllNotes(backup.notes)
+  } catch {
+    showToast('Could not restore that backup on this device', 'muted')
+    return
+  }
+  showToast('Restored your notes')
+  await syncReminders()
+}
+
+async function deleteEverything() {
+  confirmDeleteAll.value = false
+  await deleteAllData()
+  settings.value = await getSettings()
+  pushUrl.value = ''
+  pushToken.value = ''
+  // With no server saved, this withdraws the reminders booked for this phone.
+  await syncReminders()
+  showToast('Deleted all data', 'muted')
+  resetOnboarding()
 }
 
 onMounted(async () => {
@@ -291,6 +372,67 @@ onMounted(async () => {
           How Worknote works
         </button>
       </section>
+
+      <section class="rounded-3xl border border-line bg-card p-4">
+        <h2 class="font-display text-xl text-ink">Backup</h2>
+        <p class="mt-1 text-sm leading-6 text-muted">
+          Download your notes as a JSON file, or replace them with a file from another device.
+          Reminder settings stay with each device.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            class="rounded-full bg-accent px-4 py-2.5 text-sm font-bold text-on-accent"
+            @click="backupToFile"
+          >
+            Backup to file
+          </button>
+          <button
+            type="button"
+            class="rounded-full px-2 py-2.5 text-sm font-bold text-accent"
+            @click="chooseRestoreFile"
+          >
+            Restore from file
+          </button>
+        </div>
+        <input
+          ref="restoreFile"
+          type="file"
+          accept="application/json,.json"
+          class="hidden"
+          tabindex="-1"
+          aria-hidden="true"
+          @change="readRestoreFile"
+        />
+      </section>
+
+      <button
+        type="button"
+        class="w-full rounded-full bg-warn-soft px-4 py-2.5 text-sm font-bold text-warn"
+        @click="confirmDeleteAll = true"
+      >
+        Delete all data
+      </button>
     </div>
+
+    <ConfirmDialog
+      :open="Boolean(pendingRestore)"
+      title="Restore this backup?"
+      :message="restoreMessage"
+      confirm-label="Restore"
+      danger
+      @cancel="pendingRestore = null"
+      @confirm="confirmRestore"
+    />
+
+    <ConfirmDialog
+      :open="confirmDeleteAll"
+      title="Delete all data?"
+      message="Every note, your reminder settings and the reminder server details are removed from this device, and reminders booked for it are withdrawn. Make a backup first if you want to keep your notes."
+      confirm-label="Delete everything"
+      danger
+      @cancel="confirmDeleteAll = false"
+      @confirm="deleteEverything"
+    />
   </section>
 </template>

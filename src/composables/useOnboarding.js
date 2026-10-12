@@ -28,5 +28,16 @@ export function useOnboarding() {
     open.value = true
   }
 
-  return { open, seen, dismiss, show }
+  /** Forgets the welcome was seen, so it shows again, for Delete all data. */
+  function reset() {
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // Nothing stored to forget.
+    }
+    seen.value = false
+    open.value = true
+  }
+
+  return { open, seen, dismiss, show, reset }
 }
