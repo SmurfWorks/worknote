@@ -1,10 +1,8 @@
 import { computed, ref } from 'vue'
-import { isAndroid, isIos, isMobileDevice } from '../lib/device'
+import { isIos, isMobileDevice } from '../lib/device'
 
 /** How long to wait for the browser's last result after asking it to stop. */
 const STOP_WAIT_MS = 2000
-/** How long to wait for captions to take the microphone before the recorder opens it too. */
-const AUDIO_START_WAIT_MS = 1500
 
 function getSpeechCtor() {
   if (typeof window === 'undefined') return null
@@ -88,10 +86,6 @@ export function useTranscription() {
     }, delay)
   }
 
-  /**
-   * Starts listening. Resolves once captions have the microphone, or after a short wait, so the
-   * recorder can open it afterwards: Android only gives captions audio when they open it first.
-   */
   function start() {
     const Ctor = getSpeechCtor()
     error.value = null
@@ -103,13 +97,12 @@ export function useTranscription() {
 
     if (!Ctor) {
       error.value = 'Live captions are not available in this browser. You can type the note instead.'
-      return Promise.resolve()
+      return
     }
 
     const mobile = isMobileDevice()
     recognition = new Ctor()
-    // One long session where possible. On Android a restart after a pause cannot reopen the
-    // microphone while the recorder holds it, so captions would stop after the first sentence.
+    // One long session where possible, so pauses do not need a restart. iOS needs one per phrase.
     recognition.continuous = !isIos()
     recognition.interimResults = true
     recognition.maxAlternatives = 1
@@ -122,7 +115,6 @@ export function useTranscription() {
     }
 
     recognition.onerror = (event) => {
-      audioReady()
       if (event.error === 'no-speech' || event.error === 'aborted') return
       if (event.error === 'audio-capture') {
         captureRetries += 1
@@ -155,19 +147,7 @@ export function useTranscription() {
       finishStop?.()
     }
 
-    let audioReady = () => {}
-    const ready = new Promise((resolve) => {
-      const timer = window.setTimeout(resolve, isAndroid() ? AUDIO_START_WAIT_MS : 0)
-      audioReady = () => {
-        window.clearTimeout(timer)
-        resolve()
-      }
-    })
-    recognition.onaudiostart = () => audioReady()
-
     begin()
-    if (!isListening.value) audioReady()
-    return ready
   }
 
   function finish() {

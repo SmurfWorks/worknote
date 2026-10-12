@@ -96,6 +96,10 @@ function queuePersist() {
 async function onCaptured(payload) {
   recording.value = false
   saveError.value = null
+  if (!payload.blob && !payload.transcript.trim()) {
+    saveError.value = 'No words were heard, so nothing was saved. Try again, or type the note instead.'
+    return
+  }
   const now = new Date().toISOString()
   const next = {
     date: date.value,
