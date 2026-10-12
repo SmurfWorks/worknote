@@ -56,7 +56,7 @@ onBeforeUnmount(() => lockScroll(false))
             <li class="rounded-3xl border border-line bg-card p-4">
               <p class="font-display text-lg text-ink">Capture the day</p>
               <p class="mt-1 text-sm leading-6 text-muted">
-                Write a few lines about your day. Tap Dictate to fill the note from your voice; the words appear as you speak and you can edit them afterwards. No audio is kept.
+                Add an entry whenever you finish something, as many as you like each day. Tap Dictate to fill an entry from your voice; the words appear as you speak and you can edit them afterwards. No audio is kept.
               </p>
             </li>
             <li class="rounded-3xl border border-line bg-card p-4">

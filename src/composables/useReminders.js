@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { getSettings, listNoteDates } from '../lib/db'
+import { getSettings, listEntryTimes } from '../lib/db'
 import {
   checkPushConnection,
   ensurePushDevice,
@@ -111,7 +111,7 @@ async function sync() {
     url: new URL('./', document.baseURI).href,
     icon: new URL('icon-192.png', document.baseURI).href,
   }
-  const wanted = scheduledReminders(settings, await listNoteDates()).map((item) => ({ ...item, ...links }))
+  const wanted = scheduledReminders(settings, await listEntryTimes()).map((item) => ({ ...item, ...links }))
 
   try {
     const deviceId = await ensurePushDevice(auth, settings.timezone)

@@ -14,9 +14,19 @@ onMounted(async () => {
   loading.value = false
 })
 
-function excerpt(text) {
-  const clean = text.trim()
+/** The day's entries in the order they were written, run together and cut short. */
+function excerpt(note) {
+  const clean = [...note.entries]
+    .sort((a, b) => String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? '')))
+    .map((entry) => entry.text.trim())
+    .filter(Boolean)
+    .join(' · ')
   return clean.length > 140 ? `${clean.slice(0, 137)}…` : clean
+}
+
+function entryCount(note) {
+  const count = note.entries.filter((entry) => entry.text.trim()).length
+  return count === 1 ? '1 entry' : `${count} entries`
 }
 
 function openDay() {
@@ -71,8 +81,11 @@ function openDay() {
           :to="note.date === todayKey() ? '/' : { path: '/', query: { date: note.date } }"
           class="block rounded-3xl border border-line bg-card px-4 py-4 transition hover:border-accent"
         >
-          <p class="text-sm font-semibold text-accent">{{ formatShortDate(note.date) }}</p>
-          <p class="mt-1 text-sm leading-6 text-ink">{{ excerpt(note.transcript) }}</p>
+          <div class="flex items-baseline justify-between gap-3">
+            <p class="text-sm font-semibold text-accent">{{ formatShortDate(note.date) }}</p>
+            <p class="text-xs text-muted">{{ entryCount(note) }}</p>
+          </div>
+          <p class="mt-1 text-sm leading-6 text-ink">{{ excerpt(note) }}</p>
         </RouterLink>
       </li>
     </ul>

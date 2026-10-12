@@ -56,24 +56,64 @@ export async function saveSettings(settings) {
   )
 }
 
-export async function getNote(date) {
-  const db = await getDb()
-  return db.get('notes', date)
+function newEntryId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-export async function saveNote(note) {
+/** A day's entries, from a stored record. Days saved before entries existed hold one `transcript`. */
+function readEntries(stored) {
+  if (Array.isArray(stored?.entries)) {
+    return stored.entries
+      .filter((entry) => typeof entry?.text === 'string')
+      .map((entry) => ({
+        id: typeof entry.id === 'string' ? entry.id : newEntryId(),
+        text: entry.text,
+        createdAt: entry.createdAt ?? stored.createdAt ?? null,
+        updatedAt: entry.updatedAt ?? entry.createdAt ?? null,
+      }))
+  }
+  const text = typeof stored?.transcript === 'string' ? stored.transcript : ''
+  if (!text.trim()) return []
+  return [{ id: newEntryId(), text, createdAt: stored.createdAt ?? null, updatedAt: stored.updatedAt ?? null }]
+}
+
+function readDay(stored) {
+  return stored ? { date: stored.date, entries: readEntries(stored) } : null
+}
+
+export function createEntry(text, now = new Date()) {
+  const at = now.toISOString()
+  return { id: newEntryId(), text, createdAt: at, updatedAt: at }
+}
+
+/** Note writes run in order, and reads wait for them, so a screen opened as another saves sees the save. */
+let noteWrites = Promise.resolve()
+
+/** A day's note: `{ date, entries: [{ id, text, createdAt, updatedAt }] }`, or undefined. */
+export async function getNote(date) {
+  await noteWrites
+  const db = await getDb()
+  return readDay(await db.get('notes', date)) ?? undefined
+}
+
+export function saveNote(note) {
+  const write = noteWrites.then(() => writeNote(note))
+  noteWrites = write.catch(() => {})
+  return write
+}
+
+async function writeNote(note) {
   const db = await getDb()
   const key = note.date
-  if (!noteHasContent(note)) {
+  const entries = (note.entries ?? []).filter((entry) => entry.text.trim())
+  if (entries.length === 0) {
     const existed = Boolean(await db.get('notes', key))
     if (existed) await db.delete('notes', key)
     return existed ? 'removed' : 'empty'
   }
   await db.put('notes', {
-    date: note.date,
-    transcript: note.transcript ?? '',
-    createdAt: note.createdAt,
-    updatedAt: note.updatedAt,
+    date: key,
+    entries: entries.map(({ id, text, createdAt, updatedAt }) => ({ id, text, createdAt, updatedAt })),
   })
   return 'saved'
 }
@@ -83,21 +123,30 @@ export async function deleteNote(date) {
   await db.delete('notes', date)
 }
 
-/** Dates (YYYY-MM-DD) that have a note. */
-export async function listNoteDates() {
+/** When each entry was written (ISO), on any day, for the reminder rules. */
+export async function listEntryTimes() {
+  await noteWrites
   const db = await getDb()
-  return new Set(await db.getAllKeys('notes'))
+  const times = []
+  for (const record of await db.getAll('notes')) {
+    for (const entry of readEntries(record)) {
+      if (entry.text.trim() && entry.createdAt) times.push(entry.createdAt)
+    }
+  }
+  return times
 }
 
 export async function listNotes() {
+  await noteWrites
   const db = await getDb()
-  const notes = await db.getAll('notes')
+  const stored = await db.getAll('notes')
   const kept = []
-  for (const note of notes) {
-    if (noteHasContent(note)) {
-      kept.push(note)
+  for (const record of stored) {
+    const day = readDay(record)
+    if (noteHasContent(day)) {
+      kept.push(day)
     } else {
-      await db.delete('notes', note.date)
+      await db.delete('notes', record.date)
     }
   }
   return kept.sort((a, b) => b.date.localeCompare(a.date))
@@ -105,5 +154,5 @@ export async function listNotes() {
 
 export function noteHasContent(note) {
   if (!note) return false
-  return Boolean(note.transcript?.trim())
+  return (note.entries ?? []).some((entry) => entry.text.trim())
 }

@@ -1,6 +1,6 @@
 # Worknote
 
-A Vue 3 app for a daily note of what you worked on. Type the note, or tap **Dictate** to fill it from your voice with the browser’s built-in speech recognition. No audio is saved; notes are kept in this device’s IndexedDB.
+A Vue 3 app for a daily note of what you worked on. Add as many entries a day as you like: type each one, or tap **Dictate** to fill it from your voice with the browser’s built-in speech recognition. No audio is saved; notes are kept in this device’s IndexedDB.
 
 ## Run it while developing
 
